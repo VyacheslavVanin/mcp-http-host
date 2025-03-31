@@ -24,11 +24,21 @@ class Configuration:
         """Initialize configuration with environment variables."""
         self.load_env()
         self.api_key = os.getenv("LLM_API_KEY")
+        self.llm_provider = os.getenv("LLM_PROVIDER", "ollama").lower()
 
     @staticmethod
     def load_env() -> None:
         """Load environment variables from .env file."""
         load_dotenv()
+
+    @property
+    def use_ollama(self) -> bool:
+        """Check if Ollama should be used as the LLM provider.
+        
+        Returns:
+            True if Ollama should be used, False for Groq.
+        """
+        return self.llm_provider == "ollama"
 
     @staticmethod
     def load_config(file_path: str) -> dict[str, Any]:
@@ -273,6 +283,59 @@ class LLMClient:
             )
 
 
+class OllamaClient:
+    """Manages communication with a local Ollama server."""
+
+    def __init__(self, model: str = "llama3") -> None:
+        """Initialize the Ollama client.
+        
+        Args:
+            model: The model name to use (default: "llama3")
+        """
+        self.model = model
+
+    def get_response(self, messages: list[dict[str, str]]) -> str:
+        """Get a response from the local Ollama server.
+
+        Args:
+            messages: A list of message dictionaries.
+
+        Returns:
+            The LLM's response as a string.
+
+        Raises:
+            httpx.RequestError: If the request to Ollama fails.
+        """
+        url = "http://localhost:11434/api/chat"
+
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "stream": False
+        }
+
+        try:
+            with httpx.Client() as client:
+                response = client.post(url, json=payload)
+                response.raise_for_status()
+                data = response.json()
+                return data["message"]["content"]
+
+        except httpx.RequestError as e:
+            error_message = f"Error getting Ollama response: {str(e)}"
+            logging.error(error_message)
+
+            if isinstance(e, httpx.HTTPStatusError):
+                status_code = e.response.status_code
+                logging.error(f"Status code: {status_code}")
+                logging.error(f"Response details: {e.response.text}")
+
+            return (
+                f"I encountered an error: {error_message}. "
+                "Please try again or rephrase your request."
+            )
+
+
 class ChatSession:
     """Orchestrates the interaction between user, LLM, and tools."""
 
@@ -385,6 +448,9 @@ class ChatSession:
                     if user_input in ["quit", "exit"]:
                         logging.info("\nExiting...")
                         break
+                    if user_input in ["/clear"]:
+                        messages = [{"role": "system", "content": system_message}]
+                        continue
 
                     messages.append({"role": "user", "content": user_input})
 
@@ -421,7 +487,12 @@ async def main() -> None:
         Server(name, srv_config)
         for name, srv_config in server_config["mcpServers"].items()
     ]
-    llm_client = LLMClient(config.llm_api_key)
+    
+    if config.use_ollama:
+        llm_client = OllamaClient("qwen2.5-coder")
+    else:
+        llm_client = LLMClient(config.llm_api_key)
+        
     chat_session = ChatSession(servers, llm_client)
     await chat_session.start()
 
