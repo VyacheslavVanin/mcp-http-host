@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "calculator": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/home/vaninvv/Documents/Cline/MCP/calculator",
+        "run",
+        "main.py"
+      ],
+      "disabled": false,
+      "autoApprove": [
+        "calculate_square_root",
+        "list_tools",
+        "calculate_math_expression",
+        ""
+      ]
+    }
+  }
+}
