@@ -263,7 +263,7 @@ class LLMClient:
 
         try:
             with httpx.Client() as client:
-                response = client.post(url, headers=headers, json=payload)
+                response = client.post(url, headers=headers, json=payload, timeout=None)
                 response.raise_for_status()
                 data = response.json()
                 return data["choices"][0]["message"]["content"]
@@ -316,7 +316,7 @@ class OllamaClient:
 
         try:
             with httpx.Client() as client:
-                response = client.post(url, json=payload)
+                response = client.post(url, json=payload, timeout=None)
                 response.raise_for_status()
                 data = response.json()
                 return data["message"]["content"]
