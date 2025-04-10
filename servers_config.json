@@ -15,6 +15,24 @@
         "calculate_math_expression",
         ""
       ]
+    },
+    "basic-agent": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/home/vaninvv/Documents/Cline/MCP/basic-agent",
+        "run",
+        "main.py"
+      ],
+      "disabled": false,
+      "autoApprove": [
+        "calculate_square_root",
+        "list_tools",
+        "calculate_math_expression",
+        "list_files",
+        "read_file",
+        ""
+      ]
     }
   }
 }

@@ -311,7 +311,11 @@ class OllamaClient:
         payload = {
             "model": self.model,
             "messages": messages,
-            "stream": False
+            "stream": False,
+            "options": {
+                "num_ctx": 16384,
+                "temperature": 0.2,
+            },
         }
 
         try:
@@ -355,6 +359,17 @@ class ChatSession:
             except Exception as e:
                 logging.warning(f"Warning during final cleanup: {e}")
 
+    def try_get_tool_call(self, llm_response:str) -> str:
+        try:
+            tool_call = json.loads(llm_response)
+            return tool_call
+        except json.JSONDecodeError as e:
+            print(e)
+
+        lines = '\n'.join(llm_response.split('\n')[1:-1])
+        tool_call = json.loads(lines)
+        return tool_call
+            
     async def process_llm_response(self, llm_response: str) -> str:
         """Process the LLM response and execute tools if needed.
 
@@ -367,7 +382,7 @@ class ChatSession:
         import json
 
         try:
-            tool_call = json.loads(llm_response)
+            tool_call = self.try_get_tool_call(llm_response)
             if "tool" in tool_call and "arguments" in tool_call:
                 logging.info(f"Executing tool: {tool_call['tool']}")
                 logging.info(f"With arguments: {tool_call['arguments']}")
@@ -424,7 +439,8 @@ class ChatSession:
                 "Choose the appropriate tool based on the user's question. "
                 "If no tool is needed, reply directly.\n\n"
                 "IMPORTANT: When you need to use a tool, you must ONLY respond with "
-                "the exact JSON object format below, nothing else:\n"
+                "the exact JSON object format below, nothing else, especialy a "
+                "markdown tags around response:\n"
                 "{\n"
                 '    "tool": "tool-name",\n'
                 '    "arguments": {\n'
@@ -488,8 +504,9 @@ async def main() -> None:
         for name, srv_config in server_config["mcpServers"].items()
     ]
     
+    model = "qwen2.5-coder:latest"
     if config.use_ollama:
-        llm_client = OllamaClient("qwen2.5-coder")
+        llm_client = OllamaClient(model)
     else:
         llm_client = LLMClient(config.llm_api_key)
         
