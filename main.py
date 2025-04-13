@@ -1,4 +1,5 @@
 import logging
+import os
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -24,6 +25,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+class StartSession(BaseModel):
+    current_directory: str
 
 
 class UserRequest(BaseModel):
@@ -98,6 +103,14 @@ async def get_session_state() -> dict:
         raise HTTPException(status_code=503, detail="Service not initialized")
 
     return chat_session.get_session_state()
+
+
+@app.post("/start_session")
+async def start_session(request: StartSession) -> dict:
+    chat_session.current_directory = request.current_directory
+    os.chdir(request.current_directory)
+    await chat_session.init_system_message()
+    return dict()
 
 
 if __name__ == "__main__":

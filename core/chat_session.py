@@ -17,7 +17,13 @@ class LLMResponse:
     def __init__(self, message: str, request_id: str = None, tool_call=None):
         self.message: str = message
         self.request_id: str = request_id
-        self.tool = tool_call
+        self.tool : str | None = None
+        if tool_call:
+            tool_text = f'{tool_call["tool"]}('
+            for k, v in tool_call['arguments'].items():
+                tool_text += f'"{k}": "{v}",'
+            tool_text += ')'
+            self.tool: str = tool_text
 
 
 class ChatSession:
@@ -29,6 +35,7 @@ class ChatSession:
         self.messages: list[dict[str, str]] = []
         self._pending_request_id: str | None = None
         self._pending_tool_call: dict | None = None
+        self.current_directory : str = './'
 
     async def init_servers(self) -> bool:
         """Initialize all servers.
@@ -116,6 +123,7 @@ class ChatSession:
                     "4. Use appropriate context from the user's question\n"
                     "5. Avoid simply repeating the raw data\n\n"
                     "Please use only the tools that are explicitly defined above."
+                    f"Yor current directory is {self.current_directory}"
                 ),
             }
         ]
@@ -174,7 +182,9 @@ class ChatSession:
             None: For exit/reset commands
         """
         if self._pending_request_id is not None:
-            return LLMResponse("400 approve requested for {self._pending_request_id}")
+            return LLMResponse("approve required ",
+                                request_id=self._pending_request_id,
+                                tool_call=self._pending_tool_call)
 
         continuation, user_input = await self._process_user_input(user_input)
         if continuation in [ChatContinuation.EXIT, ChatContinuation.RESET_CHAT]:
@@ -198,7 +208,7 @@ class ChatSession:
             or self._pending_request_id != request_id
             or self._pending_tool_call is None
         ):
-            LLMResponse(
+            return LLMResponse(
                 "Invalid or expired request ID",
                 request_id=self._pending_request_id,
                 tool_call=self._pending_tool_call,
@@ -207,7 +217,7 @@ class ChatSession:
         if not approve:
             self._pending_request_id = None
             self._pending_tool_call = None
-            LLMResponse("Tool execution denied")
+            return LLMResponse("Tool execution denied")
 
         try:
             tool_call = self._pending_tool_call
