@@ -154,7 +154,7 @@ class ChatSession:
                 self._pending_request_id = request_id
                 self._pending_tool_call = tool_call
                 return LLMResponse(
-                    "approve required", request_id=request_id, tool_call=tool_call
+                    f"approve required {tool_call['tool']}", request_id=request_id, tool_call=tool_call
                 )
 
             self._append_llm_response(llm_response)
@@ -174,7 +174,7 @@ class ChatSession:
             None: For exit/reset commands
         """
         if self._pending_request_id is not None:
-            return f"400 approve requested for {self._pending_request_id}"
+            return LLMResponse("400 approve requested for {self._pending_request_id}")
 
         continuation, user_input = await self._process_user_input(user_input)
         if continuation in [ChatContinuation.EXIT, ChatContinuation.RESET_CHAT]:
