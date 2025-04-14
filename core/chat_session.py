@@ -1,10 +1,21 @@
 import asyncio
 import json
 import logging
+import re
+import xml
+import xmltodict
 from enum import Enum
 
 from .server import Server
 from .llm_client import LLMClient
+
+
+def get_xmldict_in_tags(text, tag):
+    pattern = r"(<{0}>(.*?)<\/{0}>)".format(tag)
+    matches = re.findall(pattern, text, re.DOTALL)
+    if len(matches) != 1:
+        return dict()
+    return xmltodict.parse(matches[0][0])["use_tool"]
 
 
 class ChatContinuation(Enum):
@@ -17,12 +28,12 @@ class LLMResponse:
     def __init__(self, message: str, request_id: str = None, tool_call=None):
         self.message: str = message
         self.request_id: str = request_id
-        self.tool : str | None = None
+        self.tool: str | None = None
         if tool_call:
-            tool_text = f'{tool_call["tool"]}('
-            for k, v in tool_call['arguments'].items():
+            tool_text = f"{tool_call['tool']}("
+            for k, v in tool_call["arguments"].items():
                 tool_text += f'"{k}": "{v}",'
-            tool_text += ')'
+            tool_text += ")"
             self.tool: str = tool_text
 
 
@@ -35,7 +46,7 @@ class ChatSession:
         self.messages: list[dict[str, str]] = []
         self._pending_request_id: str | None = None
         self._pending_tool_call: dict | None = None
-        self.current_directory : str = './'
+        self.current_directory: str = "./"
 
     async def init_servers(self) -> bool:
         """Initialize all servers.
@@ -70,16 +81,7 @@ class ChatSession:
                 logging.warning(f"Warning during final cleanup: {e}")
 
     def try_get_tool_call(self, llm_response: str) -> str:
-        llm_response = llm_response.strip()
-        try:
-            tool_call = json.loads(llm_response)
-            return tool_call
-        except json.JSONDecodeError as e:
-            print(e)
-
-        lines = "\n".join(llm_response.split("\n")[1:-1])
-        tool_call = json.loads(lines)
-        return tool_call
+        return get_xmldict_in_tags(llm_response, "use_tool")
 
     def _append_llm_response(self, message):
         self.messages.append({"role": "assistant", "content": message})
@@ -98,33 +100,33 @@ class ChatSession:
             all_tools.extend(tools)
 
         tools_description = "\n".join([tool.format_for_llm() for tool in all_tools])
+        sys_content = f"""
+You are a helpful assistant with access to these tools:
+{tools_description}
+Choose the appropriate tool based on the user's question. If no tool is needed, reply directly.
+
+IMPORTANT: When you need to use a tool, you must ONLY respond with the exact format below:
+<use_tool>
+    <tool> tool-name </tool>
+    <arguments>
+        <argument-name>value</argument-name>
+        <another-argument-name>another-value</another-argument-name>
+    </arguments>
+</use_tool>
+After receiving a tool's response:
+1. Transform the raw data into a natural, conversational response
+2. Keep responses concise but informative
+3. Focus on the most relevant information
+4. Use appropriate context from the user's question
+5. Avoid simply repeating the raw data
+Please use only the tools that are explicitly defined above.
+Yor current directory is {self.current_directory}
+"""
 
         self.messages = [
             {
                 "role": "system",
-                "content": (
-                    "You are a helpful assistant with access to these tools:\n\n"
-                    f"{tools_description}\n"
-                    "Choose the appropriate tool based on the user's question. "
-                    "If no tool is needed, reply directly.\n\n"
-                    "IMPORTANT: When you need to use a tool, you must ONLY respond with "
-                    "the exact JSON object format below, nothing else, especialy a "
-                    "markdown tags around response:\n"
-                    "{\n"
-                    '    "tool": "tool-name",\n'
-                    '    "arguments": {\n'
-                    '        "argument-name": "value"\n'
-                    "    }\n"
-                    "}\n\n"
-                    "After receiving a tool's response:\n"
-                    "1. Transform the raw data into a natural, conversational response\n"
-                    "2. Keep responses concise but informative\n"
-                    "3. Focus on the most relevant information\n"
-                    "4. Use appropriate context from the user's question\n"
-                    "5. Avoid simply repeating the raw data\n\n"
-                    "Please use only the tools that are explicitly defined above."
-                    f"Yor current directory is {self.current_directory}"
-                ),
+                "content": sys_content,
             }
         ]
         self._pending_request_id = None
@@ -153,6 +155,7 @@ class ChatSession:
 
     async def _llm_request(self, messages) -> LLMResponse:
         llm_response = self.llm_client.get_response(messages)
+        self._append_llm_response(llm_response)
         try:
             tool_call = self.try_get_tool_call(llm_response)
             if "tool" in tool_call and "arguments" in tool_call:
@@ -162,12 +165,14 @@ class ChatSession:
                 self._pending_request_id = request_id
                 self._pending_tool_call = tool_call
                 return LLMResponse(
-                    f"approve required {tool_call['tool']}", request_id=request_id, tool_call=tool_call
+                    f"approve required {tool_call['tool']}",
+                    request_id=request_id,
+                    tool_call=tool_call,
                 )
 
             self._append_llm_response(llm_response)
             return LLMResponse(llm_response)
-        except (json.JSONDecodeError, AttributeError):
+        except (json.JSONDecodeError, AttributeError, xml.parsers.expat.ExpatError):
             self._append_llm_response(llm_response)
             return LLMResponse(llm_response)
 
@@ -182,9 +187,11 @@ class ChatSession:
             None: For exit/reset commands
         """
         if self._pending_request_id is not None:
-            return LLMResponse("approve required ",
-                                request_id=self._pending_request_id,
-                                tool_call=self._pending_tool_call)
+            return LLMResponse(
+                "approve required ",
+                request_id=self._pending_request_id,
+                tool_call=self._pending_tool_call,
+            )
 
         continuation, user_input = await self._process_user_input(user_input)
         if continuation in [ChatContinuation.EXIT, ChatContinuation.RESET_CHAT]:
@@ -228,7 +235,6 @@ class ChatSession:
                         tool_call["tool"], tool_call["arguments"]
                     )
 
-                    self._append_llm_response(json.dumps(tool_call))
                     self._append_system_message(f"Tool execution result: {result}")
 
                     self._pending_request_id = None

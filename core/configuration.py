@@ -53,7 +53,7 @@ class Configuration:
         parser.add_argument(
             "--servers-config",
             help="Path to servers config file",
-            default="servers_config.json"
+            default="servers_config.json",
         )
         return parser.parse_args()
 
