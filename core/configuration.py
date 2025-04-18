@@ -53,7 +53,7 @@ class Configuration:
         parser.add_argument(
             "--servers-config",
             help="Path to servers config file",
-            default="servers_config.json",
+            default=None,
         )
         return parser.parse_args()
 
@@ -103,8 +103,24 @@ class Configuration:
             FileNotFoundError: If configuration file doesn't exist.
             JSONDecodeError: If configuration file is invalid JSON.
         """
-        with open(file_path, "r") as f:
-            return json.load(f)
+        ret = {"mcpServers": dict()}
+        if file_path is not None:
+            with open(file_path, "r") as f:
+                ret = json.load(f)
+
+        basic_agent = {
+            "command": "uv",
+            "args": [
+                "--directory",
+                f"{os.getcwd()}/basic-mcp-server",
+                "run",
+                "main.py",
+            ],
+            "disabled": False,
+            "autoApprove": ["list_tools", "list_files", "read_file", ""],
+        }
+        ret["mcpServers"]["basic-mcp-server"] = basic_agent
+        return ret
 
     @property
     def llm_api_key(self) -> str:
