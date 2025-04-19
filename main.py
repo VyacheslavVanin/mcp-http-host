@@ -59,7 +59,7 @@ async def startup_event():
     else:
         llm_client = LLMClient(config.llm_api_key, model)
 
-    chat_session = ChatSession(servers, llm_client)
+    chat_session = ChatSession(config.current_directory, servers, llm_client)
     if not await chat_session.init_session():
         raise RuntimeError("Failed to initialize chat session")
 

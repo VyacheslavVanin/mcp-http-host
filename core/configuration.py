@@ -31,6 +31,7 @@ class Configuration:
             if args.openai_base_url
             else os.getenv("OPENAI_BASE_URL", "https://openrouter.ai/api/v1")
         )
+        self.current_directory = args.current_directory
         self.servers_config_path = args.servers_config
 
     @staticmethod
@@ -54,6 +55,11 @@ class Configuration:
             "--servers-config",
             help="Path to servers config file",
             default=None,
+        )
+        parser.add_argument(
+            "--current-directory",
+            help="Set current working directory",
+            default="./",
         )
         return parser.parse_args()
 

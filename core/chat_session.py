@@ -40,13 +40,13 @@ class LLMResponse:
 class ChatSession:
     """Orchestrates the interaction between user, LLM, and tools."""
 
-    def __init__(self, servers: list[Server], llm_client: LLMClient) -> None:
+    def __init__(self, current_directory:str, servers: list[Server], llm_client: LLMClient) -> None:
         self.servers: list[Server] = servers
         self.llm_client: LLMClient = llm_client
         self.messages: list[dict[str, str]] = []
         self._pending_request_id: str | None = None
         self._pending_tool_call: dict | None = None
-        self.current_directory: str = "./"
+        self.current_directory: str = current_directory
 
     async def init_servers(self) -> bool:
         """Initialize all servers.
