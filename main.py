@@ -1,5 +1,6 @@
 import logging
 import os
+import copy
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -29,6 +30,13 @@ app.add_middleware(
 
 class StartSession(BaseModel):
     current_directory: str
+    # ollama or openai
+    llm_provider: str = 'ollama'
+    model: str
+    provider_base_url: str = 'http://localhost:11434'
+    api_key : str = ''
+    temperature: float = 0.2
+    context_window_size: int = 2048
 
 
 class UserRequest(BaseModel):
@@ -54,9 +62,9 @@ async def startup_event():
     ]
 
     if config.use_ollama:
-        llm_client = OllamaClient(config)
+        llm_client = OllamaClient(copy.deepcopy(config))
     else:
-        llm_client = LLMClient(config)
+        llm_client = LLMClient(copy.deepcopy(config))
 
     chat_session = ChatSession(config.current_directory, servers, llm_client)
     if not await chat_session.init_session():
@@ -108,6 +116,22 @@ async def get_session_state() -> dict:
 async def start_session(request: StartSession) -> dict:
     chat_session.current_directory = request.current_directory
     os.chdir(request.current_directory)
+
+    if request.llm_provider is None or request.llm_provider == 'ollama':
+        llm_client = OllamaClient(copy.deepcopy(config))
+        if request.provider_base_url:
+            llm_client.config.ollama_base_url = request.provider_base_url
+    elif request.llm_provider == 'openai':
+        llm_client = LLMClient(copy.deepcopy(config))
+        if request.provider_base_url:
+            llm_client.config.openai_base_url = request.provider_base_url
+    if request.model:
+        llm_client.config.model = request.model
+    if request.api_key:
+        llm_client.config.api_key = request.api_key
+    llm_client.config.temperature = request.temperature
+    llm_client.config.context_window_size = request.context_window_size
+
     await chat_session.init_system_message()
     return dict()
 
