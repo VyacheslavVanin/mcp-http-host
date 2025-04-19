@@ -42,12 +42,13 @@ class LLMClient:
         payload = {
             "messages": messages,
             "model": self.model,
-            "temperature": 0.7,
-            "max_tokens": 4096,
-            "top_p": 1,
+            "max_tokens": 16384,
+            "top_p": 0.9,
             "stream": False,
             "stop": None,
         }
+        if self.config.temperature:
+            payload["temperature"] = self.config.temperature
 
         try:
             with httpx.Client() as client:
@@ -101,11 +102,11 @@ class OllamaClient:
             "model": model,
             "messages": messages,
             "stream": False,
-            "options": {
-                "num_ctx": 16384,
-                "temperature": 0.2,
-            },
         }
+        if self.config.temperature:
+            payload["options"]["temperature"] = self.config.temperature
+        if self.config.context_window_size:
+            payload["options"]["num_ctx"] = self.config.context_window_size
 
         try:
             with httpx.Client() as client:

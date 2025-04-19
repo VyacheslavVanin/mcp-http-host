@@ -38,6 +38,8 @@ class Configuration:
         )
         self.current_directory = args.current_directory
         self.servers_config_path = args.servers_config
+        self.context_window_size = int(args.context_window_size) if args.context_window_size else None
+        self.temperature = float(args.temperature) if args.temperature else None
 
     @staticmethod
     def parse_args():
@@ -68,6 +70,16 @@ class Configuration:
             "--current-directory",
             help="Set current working directory",
             default="./",
+        )
+        parser.add_argument(
+            "--context-window-size",
+            help="Set context window size",
+            default=None,
+        )
+        parser.add_argument(
+            "--temperature",
+            help="Set temperature",
+            default=None,
         )
         return parser.parse_args()
 
