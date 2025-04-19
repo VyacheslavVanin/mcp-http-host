@@ -53,11 +53,10 @@ async def startup_event():
         for name, srv_config in server_config["mcpServers"].items()
     ]
 
-    model = config.model_name
     if config.use_ollama:
-        llm_client = OllamaClient(model)
+        llm_client = OllamaClient(config)
     else:
-        llm_client = LLMClient(config.llm_api_key, model)
+        llm_client = LLMClient(config)
 
     chat_session = ChatSession(config.current_directory, servers, llm_client)
     if not await chat_session.init_session():

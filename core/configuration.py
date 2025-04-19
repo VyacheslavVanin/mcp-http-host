@@ -31,6 +31,11 @@ class Configuration:
             if args.openai_base_url
             else os.getenv("OPENAI_BASE_URL", "https://openrouter.ai/api/v1")
         )
+        self.ollama_base_url = (
+            args.ollama_base_url
+            if args.ollama_base_url
+            else os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        )
         self.current_directory = args.current_directory
         self.servers_config_path = args.servers_config
 
@@ -50,6 +55,9 @@ class Configuration:
         )
         parser.add_argument(
             "--openai-base-url", help="Base URL for OpenAI-compatible API", default=None
+        )
+        parser.add_argument(
+            "--ollama-base-url", help="Base URL for Ollama-compatible API", default=None
         )
         parser.add_argument(
             "--servers-config",

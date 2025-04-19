@@ -10,12 +10,8 @@ class LLMClient:
 
     def __init__(
         self,
-        api_key: str,
-        model: str = "llama-3.2-90b-vision-preview",
         config: Configuration = None,
     ) -> None:
-        self.api_key: str = api_key
-        self.model: str = model
         self.config = config
 
     def get_response(self, messages: list[dict[str, str]]) -> str:
@@ -36,6 +32,8 @@ class LLMClient:
             else "https://openrouter.ai/api/v1"
         )
         url = f"{base_url}/chat/completions"
+        model = self.config.model if self.config.model else "llama-3.2-90b-vision-preview"
+        api_key = self.config.api_key
 
         headers = {
             "Content-Type": "application/json",
@@ -76,13 +74,13 @@ class LLMClient:
 class OllamaClient:
     """Manages communication with a local Ollama server."""
 
-    def __init__(self, model: str = "llama3") -> None:
+    def __init__(self, config: Configuration = None) -> None:
         """Initialize the Ollama client.
 
         Args:
             model: The model name to use (default: "llama3")
         """
-        self.model = model
+        self.config = config
 
     def get_response(self, messages: list[dict[str, str]]) -> str:
         """Get a response from the local Ollama server.
@@ -96,10 +94,11 @@ class OllamaClient:
         Raises:
             httpx.RequestError: If the request to Ollama fails.
         """
-        url = "http://localhost:11434/api/chat"
+        url = self.config.ollama_base_url + '/api/chat'
+        model = self.config.model
 
         payload = {
-            "model": self.model,
+            "model": model,
             "messages": messages,
             "stream": False,
             "options": {
