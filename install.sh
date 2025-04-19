@@ -1,15 +1,15 @@
 #!/bin/bash
 
 # Check if 'uv' command is installed
-if ! command -v uv &> /dev/null; then
+if ! command -v uv > /dev/null 2>&1 ; then
     echo "'uv' command could not be found. Installing now..."
     
-    if command -v curl &> /dev/null; then
+    if command -v curl > /dev/null 2>&1 ; then
         echo "'curl' is installed. Using it to download and install 'uv'."
-        sh <(curl -LsSf https://astral.sh/uv/install.sh)
-    elif command -v wget &> /dev/null; then
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+    elif command -v wget > /dev/null 2>&1 ; then
         echo "'wget' is installed. Using it to download and install 'uv'."
-        sh <(wget -qO- https://astral.sh/uv/install.sh)
+        wget -qO- https://astral.sh/uv/install.sh | sh
     else
         echo "Neither 'curl' nor 'wget' is installed. Please install one of them first."
         exit
