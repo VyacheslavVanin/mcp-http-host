@@ -3,6 +3,7 @@ import logging
 import httpx
 
 from core.configuration import Configuration
+from core.json_reconstruct import JsonReconstruct
 
 
 class LLMClient:
@@ -34,6 +35,7 @@ class LLMClient:
         url = f"{base_url}/chat/completions"
         model = self.config.model if self.config.model else "llama-3.2-90b-vision-preview"
         api_key = self.config.api_key
+        stream = self.config.stream
 
         headers = {
             "Content-Type": "application/json",
@@ -44,7 +46,7 @@ class LLMClient:
             "model": self.model,
             "max_tokens": 16384,
             "top_p": 0.9,
-            "stream": False,
+            "stream": stream,
             "stop": None,
         }
         if self.config.temperature:
@@ -52,10 +54,29 @@ class LLMClient:
 
         try:
             with httpx.Client() as client:
-                response = client.post(url, headers=headers, json=payload, timeout=None)
-                response.raise_for_status()
-                data = response.json()
-                return data["choices"][0]["message"]["content"]
+                response = client.post(
+                        url,
+                        headers=headers,
+                        json=payload,
+                        timeout=None,
+                        stream=stream,
+                )
+                if not stream:
+                    response.raise_for_status()
+                    data = response.json()
+                    return data["choices"][0]["message"]["content"]
+                else:
+                    response = ""
+                    def cb(obj):
+                        from pprint import pprint
+                        pprint(obj)
+                        response += ""
+                    jr = JsonReconstruct()
+                    for chunk in response.iter_text():
+                        jr.process_part(chunk, cb)
+                    jr.finalize(cb)
+                    return response
+
 
         except httpx.RequestError as e:
             error_message = f"Error getting LLM response: {str(e)}"
@@ -97,11 +118,12 @@ class OllamaClient:
         """
         url = self.config.ollama_base_url + '/api/chat'
         model = self.config.model
+        stream = self.config.stream
 
         payload = {
             "model": model,
             "messages": messages,
-            "stream": False,
+            "stream": stream
         }
         if self.config.temperature:
             payload["options"]["temperature"] = self.config.temperature
@@ -109,11 +131,28 @@ class OllamaClient:
             payload["options"]["num_ctx"] = self.config.context_window_size
 
         try:
-            with httpx.Client() as client:
-                response = client.post(url, json=payload, timeout=None)
-                response.raise_for_status()
-                data = response.json()
-                return data["message"]["content"]
+            from pprint import pprint
+            if not stream:
+                with httpx.Client() as client:
+                    response = client.post(url, json=payload, timeout=None)
+                    response.raise_for_status()
+                    data = response.json()
+                    return data["message"]["content"]
+            else:
+                with httpx.stream("POST", url, json=payload) as response:
+                    ret = ""
+                    def cb(obj):
+                        nonlocal ret
+                        pprint(obj)
+                        print(obj["message"]["content"])
+                        ret += obj["message"]["content"]
+                    jr = JsonReconstruct()
+                    for chunk in response.iter_text():
+                        print(chunk)
+                        jr.process_part(chunk, cb)
+                    jr.finalize(cb)
+                    print(ret)
+                    return ret
 
         except httpx.RequestError as e:
             error_message = f"Error getting Ollama response: {str(e)}"

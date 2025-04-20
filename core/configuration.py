@@ -40,6 +40,7 @@ class Configuration:
         self.servers_config_path = args.servers_config
         self.context_window_size = int(args.context_window_size) if args.context_window_size else None
         self.temperature = float(args.temperature) if args.temperature else None
+        self.stream : bool = bool(args.stream)
 
     @staticmethod
     def parse_args():
@@ -80,6 +81,11 @@ class Configuration:
             "--temperature",
             help="Set temperature",
             default=None,
+        )
+        parser.add_argument(
+            "--stream",
+            help="Set stream mode",
+            default=False,
         )
         return parser.parse_args()
 
