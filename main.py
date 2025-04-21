@@ -2,6 +2,7 @@ import logging
 import os
 import copy
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -31,10 +32,10 @@ app.add_middleware(
 class StartSession(BaseModel):
     current_directory: str
     # ollama or openai
-    llm_provider: str = 'ollama'
+    llm_provider: str = "ollama"
     model: str
-    provider_base_url: str = 'http://localhost:11434'
-    api_key : str = ''
+    provider_base_url: str = "http://localhost:11434"
+    api_key: str = ""
     temperature: float = 0.2
     context_window_size: int = 2048
 
@@ -77,16 +78,23 @@ async def handle_user_request(request: UserRequest) -> dict:
     if chat_session is None:
         raise HTTPException(status_code=503, detail="Service not initialized")
 
-    response = await chat_session.user_request(request.input)
-    if response is None:
-        raise HTTPException(status_code=400, detail="Invalid request")
+    validation = await chat_session.validate_request(request.input)
+    if validation is not None:
+        return validation
 
-    return {
-        "message": response.message,
-        "request_id": response.request_id,
-        "requires_approval": response.request_id is not None,
-        "tool": response.tool,
-    }
+    if not chat_session.llm_client.config.stream:
+        response = await chat_session.user_request(request.input)
+        if response is None:
+            raise HTTPException(status_code=400, detail="Invalid request")
+
+        return {
+            "message": response.message,
+            "request_id": response.request_id,
+            "requires_approval": response.request_id is not None,
+            "tool": response.tool,
+        }
+    else:
+        return chat_session.user_request_stream(request.input)
 
 
 @app.post("/approve")
@@ -117,11 +125,11 @@ async def start_session(request: StartSession) -> dict:
     chat_session.current_directory = request.current_directory
     os.chdir(request.current_directory)
 
-    if request.llm_provider is None or request.llm_provider == 'ollama':
+    if request.llm_provider is None or request.llm_provider == "ollama":
         llm_client = OllamaClient(copy.deepcopy(config))
         if request.provider_base_url:
             llm_client.config.ollama_base_url = request.provider_base_url
-    elif request.llm_provider == 'openai':
+    elif request.llm_provider == "openai":
         llm_client = LLMClient(copy.deepcopy(config))
         if request.provider_base_url:
             llm_client.config.openai_base_url = request.provider_base_url

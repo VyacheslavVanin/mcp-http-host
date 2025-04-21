@@ -38,9 +38,11 @@ class Configuration:
         )
         self.current_directory = args.current_directory
         self.servers_config_path = args.servers_config
-        self.context_window_size = int(args.context_window_size) if args.context_window_size else None
+        self.context_window_size = (
+            int(args.context_window_size) if args.context_window_size else None
+        )
         self.temperature = float(args.temperature) if args.temperature else None
-        self.stream : bool = bool(args.stream)
+        self.stream: bool = bool(args.stream)
 
     @staticmethod
     def parse_args():

@@ -1,5 +1,6 @@
 import json
 
+
 class JsonReconstruct:
     def __init__(self):
         self.buffer = ""
@@ -34,4 +35,3 @@ class JsonReconstruct:
 
     def get_buffer(self):
         return self.buffer
-

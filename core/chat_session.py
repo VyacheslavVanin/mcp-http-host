@@ -2,12 +2,15 @@ import asyncio
 import json
 import logging
 import re
+import uuid
 import xml
 import xmltodict
 from enum import Enum
 
 from .server import Server
 from .llm_client import LLMClient
+
+from fastapi.responses import StreamingResponse
 
 
 def get_xmldict_in_tags(text, tag):
@@ -37,10 +40,33 @@ class LLMResponse:
             self.tool: str = tool_text
 
 
+def LLMStreamResponse(message: str, request_id: str = None, tool_call=None, end=False):
+    tool = None
+    if tool_call:
+        tool_text = f"{tool_call['tool']}("
+        for k, v in tool_call["arguments"].items():
+            tool_text += f'"{k}": "{v}",'
+        tool_text += ")"
+        tool = tool_text
+    return (
+        json.dumps(
+            {
+                "message": message,
+                "request_id": request_id,
+                "end": end,
+                "tool": tool,
+            }
+        )
+        + "\n"
+    )
+
+
 class ChatSession:
     """Orchestrates the interaction between user, LLM, and tools."""
 
-    def __init__(self, current_directory:str, servers: list[Server], llm_client: LLMClient) -> None:
+    def __init__(
+        self, current_directory: str, servers: list[Server], llm_client: LLMClient
+    ) -> None:
         self.servers: list[Server] = servers
         self.llm_client: LLMClient = llm_client
         self.messages: list[dict[str, str]] = []
@@ -159,8 +185,6 @@ Yor current directory is {self.current_directory}
         try:
             tool_call = self.try_get_tool_call(llm_response)
             if "tool" in tool_call and "arguments" in tool_call:
-                import uuid
-
                 request_id = str(uuid.uuid4())
                 self._pending_request_id = request_id
                 self._pending_tool_call = tool_call
@@ -176,7 +200,35 @@ Yor current directory is {self.current_directory}
             self._append_llm_response(llm_response)
             return LLMResponse(llm_response)
 
-    async def user_request(self, user_input: str) -> LLMResponse | None:
+    def _llm_request_stream(self, messages) -> LLMStreamResponse:
+        llm_response = ""
+        for part in self.llm_client.get_response_stream(messages):
+            yield LLMStreamResponse(part)
+            print(part)
+            llm_response += part
+        print(llm_response)
+        self._append_llm_response(llm_response)
+        try:
+            tool_call = self.try_get_tool_call(llm_response)
+            if "tool" in tool_call and "arguments" in tool_call:
+                request_id = str(uuid.uuid4())
+                self._pending_request_id = request_id
+                self._pending_tool_call = tool_call
+                yield LLMStreamResponse(
+                    f"\napprove required {tool_call['tool']}\n",
+                    request_id=request_id,
+                    tool_call=tool_call,
+                    end=True,
+                )
+                return
+
+            self._append_llm_response(llm_response)
+            yield LLMStreamResponse("", end=True)
+        except (json.JSONDecodeError, AttributeError, xml.parsers.expat.ExpatError):
+            self._append_llm_response(llm_response)
+            yield LLMStreamResponse("", end=True)
+
+    async def validate_request(self, user_input: str) -> LLMResponse | None:
         """Handle a user request, potentially involving tool execution.
 
         Args:
@@ -197,8 +249,36 @@ Yor current directory is {self.current_directory}
         if continuation in [ChatContinuation.EXIT, ChatContinuation.RESET_CHAT]:
             await self.init_system_message()
             return LLMResponse("Session was reseted")
+        return None
 
+    async def user_request(self, user_input: str) -> LLMResponse | None:
+        """Handle a user request, potentially involving tool execution.
+
+        Args:
+            user_input: The user's input string
+
+        Returns:
+            str: The LLM response or tool approval request
+            None: For exit/reset commands
+        """
         return await self._llm_request(self.messages)
+
+    def user_request_stream(self, user_input: str) -> LLMResponse | None:
+        """Handle a user request, potentially involving tool execution.
+
+        Args:
+            user_input: The user's input string
+
+        Returns:
+            str: The LLM response or tool approval request
+            None: For exit/reset commands
+        """
+
+        def stream_generator():
+            for r in self._llm_request_stream(self.messages):
+                yield r
+
+        return StreamingResponse(stream_generator())
 
     async def approve(self, request_id: str, approve: bool) -> LLMResponse:
         """Handle tool approval/denial.

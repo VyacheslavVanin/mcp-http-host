@@ -33,7 +33,9 @@ class LLMClient:
             else "https://openrouter.ai/api/v1"
         )
         url = f"{base_url}/chat/completions"
-        model = self.config.model if self.config.model else "llama-3.2-90b-vision-preview"
+        model = (
+            self.config.model if self.config.model else "llama-3.2-90b-vision-preview"
+        )
         api_key = self.config.api_key
         stream = self.config.stream
 
@@ -55,11 +57,11 @@ class LLMClient:
         try:
             with httpx.Client() as client:
                 response = client.post(
-                        url,
-                        headers=headers,
-                        json=payload,
-                        timeout=None,
-                        stream=stream,
+                    url,
+                    headers=headers,
+                    json=payload,
+                    timeout=None,
+                    stream=stream,
                 )
                 if not stream:
                     response.raise_for_status()
@@ -67,16 +69,18 @@ class LLMClient:
                     return data["choices"][0]["message"]["content"]
                 else:
                     response = ""
+
                     def cb(obj):
                         from pprint import pprint
+
                         pprint(obj)
                         response += ""
+
                     jr = JsonReconstruct()
                     for chunk in response.iter_text():
                         jr.process_part(chunk, cb)
                     jr.finalize(cb)
                     return response
-
 
         except httpx.RequestError as e:
             error_message = f"Error getting LLM response: {str(e)}"
@@ -116,44 +120,75 @@ class OllamaClient:
         Raises:
             httpx.RequestError: If the request to Ollama fails.
         """
-        url = self.config.ollama_base_url + '/api/chat'
+        url = self.config.ollama_base_url + "/api/chat"
         model = self.config.model
         stream = self.config.stream
 
-        payload = {
-            "model": model,
-            "messages": messages,
-            "stream": stream
-        }
+        payload = {"model": model, "messages": messages, "stream": stream}
         if self.config.temperature:
             payload["options"]["temperature"] = self.config.temperature
         if self.config.context_window_size:
             payload["options"]["num_ctx"] = self.config.context_window_size
 
         try:
-            from pprint import pprint
-            if not stream:
-                with httpx.Client() as client:
-                    response = client.post(url, json=payload, timeout=None)
-                    response.raise_for_status()
-                    data = response.json()
-                    return data["message"]["content"]
-            else:
-                with httpx.stream("POST", url, json=payload) as response:
-                    ret = ""
-                    def cb(obj):
-                        nonlocal ret
-                        pprint(obj)
-                        print(obj["message"]["content"])
-                        ret += obj["message"]["content"]
-                    jr = JsonReconstruct()
-                    for chunk in response.iter_text():
-                        print(chunk)
-                        jr.process_part(chunk, cb)
-                    jr.finalize(cb)
-                    print(ret)
-                    return ret
+            with httpx.Client() as client:
+                response = client.post(url, json=payload, timeout=None)
+                response.raise_for_status()
+                data = response.json()
+                return data["message"]["content"]
+        except httpx.RequestError as e:
+            error_message = f"Error getting Ollama response: {str(e)}"
+            logging.error(error_message)
 
+            if isinstance(e, httpx.HTTPStatusError):
+                status_code = e.response.status_code
+                logging.error(f"Status code: {status_code}")
+                logging.error(f"Response details: {e.response.text}")
+
+            return (
+                f"I encountered an error: {error_message}. "
+                "Please try again or rephrase your request."
+            )
+
+    def get_response_stream(self, messages: list[dict[str, str]]) -> str:
+        """Get a response from the local Ollama server.
+
+        Args:
+            messages: A list of message dictionaries.
+
+        Returns:
+            The LLM's response as a string.
+
+        Raises:
+            httpx.RequestError: If the request to Ollama fails.
+        """
+        url = self.config.ollama_base_url + "/api/chat"
+        model = self.config.model
+        stream = self.config.stream
+
+        payload = {"model": model, "messages": messages, "stream": stream}
+        if self.config.temperature:
+            payload["options"]["temperature"] = self.config.temperature
+        if self.config.context_window_size:
+            payload["options"]["num_ctx"] = self.config.context_window_size
+
+        try:
+            with httpx.stream("POST", url, json=payload) as response:
+                ret: str | None = None
+
+                def cb(obj):
+                    nonlocal ret
+                    ret = obj["message"]["content"]
+
+                jr = JsonReconstruct()
+                for chunk in response.iter_text():
+                    jr.process_part(chunk, cb)
+                    if ret:
+                        yield ret
+                        ret = None
+                jr.finalize(cb)
+                if ret:
+                    yield ret
         except httpx.RequestError as e:
             error_message = f"Error getting Ollama response: {str(e)}"
             logging.error(error_message)
