@@ -38,6 +38,7 @@ class StartSession(BaseModel):
     api_key: str = ""
     temperature: float = 0.2
     context_window_size: int = 2048
+    stream: bool = False
 
 
 class UserRequest(BaseModel):
@@ -103,12 +104,7 @@ async def handle_approval(request: ApproveRequest) -> dict:
     if chat_session is None:
         raise HTTPException(status_code=503, detail="Service not initialized")
 
-    response = await chat_session.approve(request.request_id, request.approve)
-    return {
-        "message": response.message,
-        "request_id": response.request_id,
-        "tool": response.tool,
-    }
+    return await chat_session.approve(request.request_id, request.approve)
 
 
 @app.get("/session_state")
@@ -139,6 +135,7 @@ async def start_session(request: StartSession) -> dict:
         llm_client.config.api_key = request.api_key
     llm_client.config.temperature = request.temperature
     llm_client.config.context_window_size = request.context_window_size
+    llm_client.config.stream = request.stream
 
     await chat_session.init_system_message()
     return dict()

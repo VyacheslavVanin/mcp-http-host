@@ -27,38 +27,32 @@ class ChatContinuation(Enum):
     EXIT = 2  # User requested exit application
 
 
-class LLMResponse:
-    def __init__(self, message: str, request_id: str = None, tool_call=None):
-        self.message: str = message
-        self.request_id: str = request_id
-        self.tool: str | None = None
-        if tool_call:
-            tool_text = f"{tool_call['tool']}("
-            for k, v in tool_call["arguments"].items():
-                tool_text += f'"{k}": "{v}",'
-            tool_text += ")"
-            self.tool: str = tool_text
-
-
-def LLMStreamResponse(message: str, request_id: str = None, tool_call=None, end=False):
+def LLMResponse(self, message: str, request_id: str = None, tool_call=None) -> dict:
     tool = None
     if tool_call:
         tool_text = f"{tool_call['tool']}("
         for k, v in tool_call["arguments"].items():
             tool_text += f'"{k}": "{v}",'
         tool_text += ")"
-        tool = tool_text
-    return (
-        json.dumps(
-            {
-                "message": message,
-                "request_id": request_id,
-                "end": end,
-                "tool": tool,
-            }
-        )
-        + "\n"
-    )
+        self.tool: str = tool_text
+    ret = {
+        "message": message,
+    }
+    if request_id:
+        ret["request_id"] = request_id
+        ret["requires_approval"] = True
+    if tool:
+        ret["tool"] = tool
+    return ret
+
+
+def LLMStreamResponse(
+    message: str, request_id: str = None, tool_call=None, end=False
+) -> str:
+    ret = LLMResponse(message, request_id, tool_call)
+    if end:
+        ret["end"] = end
+    return json.dumps(ret) + "\n"
 
 
 class ChatSession:
@@ -179,7 +173,7 @@ Yor current directory is {self.current_directory}
         self._append_user_message(user_input)
         return (ChatContinuation.PROMPT, user_input)
 
-    async def _llm_request(self, messages) -> LLMResponse:
+    async def _llm_request(self, messages) -> dict:
         llm_response = self.llm_client.get_response(messages)
         self._append_llm_response(llm_response)
         try:
@@ -228,15 +222,15 @@ Yor current directory is {self.current_directory}
             self._append_llm_response(llm_response)
             yield LLMStreamResponse("", end=True)
 
-    async def validate_request(self, user_input: str) -> LLMResponse | None:
-        """Handle a user request, potentially involving tool execution.
+    async def validate_request(self, user_input: str) -> dict | None:
+        """Validate a user request.
 
         Args:
             user_input: The user's input string
 
         Returns:
-            str: The LLM response or tool approval request
-            None: For exit/reset commands
+            str: The LLM response with error
+            None: If request is ok
         """
         if self._pending_request_id is not None:
             return LLMResponse(
@@ -251,7 +245,7 @@ Yor current directory is {self.current_directory}
             return LLMResponse("Session was reseted")
         return None
 
-    async def user_request(self, user_input: str) -> LLMResponse | None:
+    async def user_request(self, user_input: str) -> dict | None:
         """Handle a user request, potentially involving tool execution.
 
         Args:
@@ -263,7 +257,7 @@ Yor current directory is {self.current_directory}
         """
         return await self._llm_request(self.messages)
 
-    def user_request_stream(self, user_input: str) -> LLMResponse | None:
+    def user_request_stream(self, user_input: str) -> dict | None:
         """Handle a user request, potentially involving tool execution.
 
         Args:
@@ -280,7 +274,7 @@ Yor current directory is {self.current_directory}
 
         return StreamingResponse(stream_generator())
 
-    async def approve(self, request_id: str, approve: bool) -> LLMResponse:
+    async def approve(self, request_id: str, approve: bool) -> dict | StreamingResponse:
         """Handle tool approval/denial.
 
         Args:
@@ -319,7 +313,15 @@ Yor current directory is {self.current_directory}
 
                     self._pending_request_id = None
                     self._pending_tool_call = None
-                    return await self._llm_request(self.messages)
+                    if self.llm_client.config.stream:
+
+                        def stream_generator():
+                            for r in self._llm_request_stream(self.messages):
+                                yield r
+
+                        return StreamingResponse(stream_generator())
+                    else:
+                        return await self._llm_request(self.messages)
 
             return LLMResponse(
                 f"No server found with tool: {tool_call['tool']}",
