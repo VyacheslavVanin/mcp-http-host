@@ -45,7 +45,7 @@ class LLMClient:
         }
         payload = {
             "messages": messages,
-            "model": self.model,
+            "model": model,
             "max_tokens": 16384,
             "top_p": 0.9,
             "stream": stream,
@@ -173,7 +173,7 @@ class OllamaClient:
             payload["options"]["num_ctx"] = self.config.context_window_size
 
         try:
-            with httpx.stream("POST", url, json=payload) as response:
+            with httpx.stream("POST", url, json=payload, timeout=None) as response:
                 ret: str | None = None
 
                 def cb(obj):
