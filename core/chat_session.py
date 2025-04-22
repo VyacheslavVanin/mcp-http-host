@@ -27,14 +27,14 @@ class ChatContinuation(Enum):
     EXIT = 2  # User requested exit application
 
 
-def LLMResponse(self, message: str, request_id: str = None, tool_call=None) -> dict:
+def LLMResponse(message: str, request_id: str = None, tool_call=None) -> dict:
     tool = None
     if tool_call:
         tool_text = f"{tool_call['tool']}("
         for k, v in tool_call["arguments"].items():
             tool_text += f'"{k}": "{v}",'
         tool_text += ")"
-        self.tool: str = tool_text
+        tool = tool_text
     ret = {
         "message": message,
     }
