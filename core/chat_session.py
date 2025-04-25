@@ -8,7 +8,7 @@ import xmltodict
 from enum import Enum
 
 from .server import Server
-from .llm_client import LLMClient
+from .llm_client import LLMClient, Response
 
 from fastapi.responses import StreamingResponse
 
@@ -27,7 +27,7 @@ class ChatContinuation(Enum):
     EXIT = 2  # User requested exit application
 
 
-def LLMResponse(message: str, request_id: str = None, tool_call=None) -> dict:
+def LLMResponse(orig_response:Response|str, request_id: str = None, tool_call=None) -> dict:
     tool = None
     if tool_call:
         tool_text = f"{tool_call['tool']}("
@@ -35,23 +35,27 @@ def LLMResponse(message: str, request_id: str = None, tool_call=None) -> dict:
             tool_text += f'"{k}": "{v}",'
         tool_text += ")"
         tool = tool_text
-    ret = {
-        "message": message,
-    }
-    if request_id:
-        ret["request_id"] = request_id
-        ret["requires_approval"] = True
-    if tool:
-        ret["tool"] = tool
+    ret = dict()
+    ret["request_id"] = request_id
+    ret["requires_approval"] = request_id is not None
+    ret["tool"] = tool
+
+    if isinstance(orig_response, Response):
+        ret["message"] = orig_response.content
+        ret["model"] = orig_response.model
+        ret["created_timestamp"] = orig_response.created_timestamp
+        ret["role"] = orig_response.role
+    else:
+        ret["message"] = orig_response
+
     return ret
 
 
 def LLMStreamResponse(
-    message: str, request_id: str = None, tool_call=None, end=False
+    orig_response: Response, request_id: str = None, tool_call=None, end=False,
 ) -> str:
-    ret = LLMResponse(message, request_id, tool_call)
-    if end:
-        ret["end"] = end
+    ret = LLMResponse(orig_response, request_id, tool_call)
+    ret["done"] = end
     return json.dumps(ret) + "\n"
 
 
@@ -175,32 +179,31 @@ Yor current directory is {self.current_directory}
 
     async def _llm_request(self, messages) -> dict:
         llm_response = self.llm_client.get_response(messages)
-        self._append_llm_response(llm_response)
+        content = llm_response.content
+        self._append_llm_response(content)
         try:
-            tool_call = self.try_get_tool_call(llm_response)
+            tool_call = self.try_get_tool_call(content)
             if "tool" in tool_call and "arguments" in tool_call:
                 request_id = str(uuid.uuid4())
                 self._pending_request_id = request_id
                 self._pending_tool_call = tool_call
                 return LLMResponse(
-                    f"approve required {tool_call['tool']}",
+                    llm_response,
                     request_id=request_id,
                     tool_call=tool_call,
                 )
 
-            self._append_llm_response(llm_response)
-            return LLMResponse(llm_response)
+            self._append_llm_response(content)
+            return llm_response
         except (json.JSONDecodeError, AttributeError, xml.parsers.expat.ExpatError):
-            self._append_llm_response(llm_response)
-            return LLMResponse(llm_response)
+            self._append_llm_response(content)
+            return llm_response
 
     def _llm_request_stream(self, messages) -> LLMStreamResponse:
         llm_response = ""
         for part in self.llm_client.get_response_stream(messages):
             yield LLMStreamResponse(part)
-            print(part)
-            llm_response += part
-        print(llm_response)
+            llm_response += part.content
         self._append_llm_response(llm_response)
         try:
             tool_call = self.try_get_tool_call(llm_response)

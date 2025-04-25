@@ -1,10 +1,49 @@
 import logging
+from datetime import datetime
+import time
 
 import httpx
 
 from core.configuration import Configuration
 from core.json_reconstruct import JsonReconstruct
 
+
+def iso8601_to_unixtimestamp(date_str):
+    # return int(datetime.datetime.strptime(date_string, "%Y-%m-%dT%H:%M:%S.%fZ").timestamp())
+    if '.' in date_str and 'Z' in date_str:
+        # Split into main part and fractional seconds + timezone
+        date_part, rest = date_str.split('.', 1)
+        fractional_part, tz_part = rest.split('Z', 1)
+        # Truncate to 6 digits and pad with zeros if necessary
+        fractional_truncated = fractional_part[:6].ljust(6, '0')
+        # Rebuild the string with UTC offset
+        new_date_str = f"{date_part}.{fractional_truncated}+0000"
+    else:
+        # Handle case without fractional seconds
+        new_date_str = date_str.replace('Z', '+0000')
+    
+    # Parse the datetime
+    dt = datetime.strptime(new_date_str, "%Y-%m-%dT%H:%M:%S.%f%z")
+    # Convert to Unix timestamp (float)
+    return dt.timestamp()
+    
+
+class Response:
+    def __init__(self, role:str, content:str, model:str, created_timestamp:int, end:bool=False):
+        self.content: str = content
+        self.role:str = role
+        self.model:str = model
+        self.created_timestamp:int = created_timestamp
+        self.done: bool = end
+
+    def to_dict(self):
+        return {
+            "content": self.content,
+            "role": self.role,
+            "model": self.model,
+            "created_timestamp": self.created_timestamp,
+            "done": self.done,
+        }
 
 class LLMClient:
     """Manages communication with the LLM provider."""
@@ -15,7 +54,7 @@ class LLMClient:
     ) -> None:
         self.config = config
 
-    def get_response(self, messages: list[dict[str, str]]) -> str:
+    def get_response(self, messages: list[dict[str, str]]) -> Response:
         """Get a response from the LLM.
 
         Args:
@@ -37,7 +76,6 @@ class LLMClient:
             self.config.model if self.config.model else "llama-3.2-90b-vision-preview"
         )
         api_key = self.config.api_key
-        stream = self.config.stream
 
         headers = {
             "Content-Type": "application/json",
@@ -48,7 +86,7 @@ class LLMClient:
             "model": model,
             "max_tokens": 16384,
             "top_p": 0.9,
-            "stream": stream,
+            "stream": False,
             "stop": None,
         }
         if self.config.temperature:
@@ -61,26 +99,16 @@ class LLMClient:
                     headers=headers,
                     json=payload,
                     timeout=None,
-                    stream=stream,
+                    stream=False,
                 )
-                if not stream:
-                    response.raise_for_status()
-                    data = response.json()
-                    return data["choices"][0]["message"]["content"]
-                else:
-                    response = ""
-
-                    def cb(obj):
-                        from pprint import pprint
-
-                        pprint(obj)
-                        response += ""
-
-                    jr = JsonReconstruct()
-                    for chunk in response.iter_text():
-                        jr.process_part(chunk, cb)
-                    jr.finalize(cb)
-                    return response
+                response.raise_for_status()
+                data = response.json()
+                choice = data["choices"][0]
+                content = choice["message"]["content"]
+                role = choice["message"]["role"]
+                model = data["model"]
+                created = data["created"]
+                return Response(role, content, model, created, end=True)
 
         except httpx.RequestError as e:
             error_message = f"Error getting LLM response: {str(e)}"
@@ -91,9 +119,13 @@ class LLMClient:
                 logging.error(f"Status code: {status_code}")
                 logging.error(f"Response details: {e.response.text}")
 
-            return (
+            return Response(
+                "system",
                 f"I encountered an error: {error_message}. "
-                "Please try again or rephrase your request."
+                "Please try again or rephrase your request.",
+                "",
+                int(time.time()),
+                end=True,
             )
 
 
@@ -122,9 +154,8 @@ class OllamaClient:
         """
         url = self.config.ollama_base_url + "/api/chat"
         model = self.config.model
-        stream = self.config.stream
 
-        payload = {"model": model, "messages": messages, "stream": stream}
+        payload = {"model": model, "messages": messages, "stream": False}
         if self.config.temperature:
             payload["options"]["temperature"] = self.config.temperature
         if self.config.context_window_size:
@@ -135,7 +166,11 @@ class OllamaClient:
                 response = client.post(url, json=payload, timeout=None)
                 response.raise_for_status()
                 data = response.json()
-                return data["message"]["content"]
+                role = data["message"]["role"]
+                content = data["message"]["content"]
+                model = data["model"]
+                created = iso8601_to_unixtimestamp(data["created_at"])
+                return Response(role, content, model, created, end=True)
         except httpx.RequestError as e:
             error_message = f"Error getting Ollama response: {str(e)}"
             logging.error(error_message)
@@ -145,12 +180,16 @@ class OllamaClient:
                 logging.error(f"Status code: {status_code}")
                 logging.error(f"Response details: {e.response.text}")
 
-            return (
+            return Response(
+                "system",
                 f"I encountered an error: {error_message}. "
-                "Please try again or rephrase your request."
+                "Please try again or rephrase your request.",
+                "",
+                int(time.time()),
+                end=True,
             )
 
-    def get_response_stream(self, messages: list[dict[str, str]]) -> str:
+    def get_response_stream(self, messages: list[dict[str, str]]) -> Response:
         """Get a response from the local Ollama server.
 
         Args:
@@ -164,9 +203,8 @@ class OllamaClient:
         """
         url = self.config.ollama_base_url + "/api/chat"
         model = self.config.model
-        stream = self.config.stream
 
-        payload = {"model": model, "messages": messages, "stream": stream}
+        payload = {"model": model, "messages": messages, "stream": True}
         if self.config.temperature:
             payload["options"]["temperature"] = self.config.temperature
         if self.config.context_window_size:
@@ -174,21 +212,30 @@ class OllamaClient:
 
         try:
             with httpx.stream("POST", url, json=payload, timeout=None) as response:
-                ret: str | None = None
+                ret: Response = Response(
+                    "assistant", "", model, time.time(), end=True,
+                )
 
                 def cb(obj):
                     nonlocal ret
-                    ret = obj["message"]["content"]
+                    ret = Response(
+                         obj["message"]["role"],
+                         obj["message"]["content"],
+                         obj["model"],
+                         iso8601_to_unixtimestamp(obj["created_at"]),
+                         end=obj["done"],
+                    )
 
                 jr = JsonReconstruct()
                 for chunk in response.iter_text():
                     jr.process_part(chunk, cb)
                     if ret:
                         yield ret
-                        ret = None
+                        ret = Response(
+                            "assistant", "", model, time.time(), end=True,
+                        )
                 jr.finalize(cb)
-                if ret:
-                    yield ret
+                yield ret
         except httpx.RequestError as e:
             error_message = f"Error getting Ollama response: {str(e)}"
             logging.error(error_message)

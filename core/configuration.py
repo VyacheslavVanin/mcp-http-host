@@ -87,6 +87,8 @@ class Configuration:
         parser.add_argument(
             "--stream",
             help="Set stream mode",
+            type=bool,
+            action=argparse.BooleanOptionalAction,
             default=False,
         )
         return parser.parse_args()

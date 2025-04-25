@@ -88,12 +88,7 @@ async def handle_user_request(request: UserRequest) -> dict:
         if response is None:
             raise HTTPException(status_code=400, detail="Invalid request")
 
-        return {
-            "message": response.message,
-            "request_id": response.request_id,
-            "requires_approval": response.request_id is not None,
-            "tool": response.tool,
-        }
+        return response
     else:
         return chat_session.user_request_stream(request.input)
 
