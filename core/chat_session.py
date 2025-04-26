@@ -27,7 +27,9 @@ class ChatContinuation(Enum):
     EXIT = 2  # User requested exit application
 
 
-def LLMResponse(orig_response:Response|str, request_id: str = None, tool_call=None) -> dict:
+def LLMResponse(
+    orig_response: Response | str, request_id: str = None, tool_call=None
+) -> dict:
     tool = None
     if tool_call:
         tool_text = f"{tool_call['tool']}("
@@ -52,7 +54,10 @@ def LLMResponse(orig_response:Response|str, request_id: str = None, tool_call=No
 
 
 def LLMStreamResponse(
-    orig_response: Response, request_id: str = None, tool_call=None, end=False,
+    orig_response: Response,
+    request_id: str = None,
+    tool_call=None,
+    end=False,
 ) -> str:
     ret = LLMResponse(orig_response, request_id, tool_call)
     ret["done"] = end

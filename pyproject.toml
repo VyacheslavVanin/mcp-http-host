@@ -11,4 +11,5 @@ dependencies = [
     "uvicorn>=0.34.0",
     "fastapi>=0.110.0",
     "xmltodict>=0.14.2",
+    "openai>=1.76.0",
 ]
