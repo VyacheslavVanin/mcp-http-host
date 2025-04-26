@@ -16,9 +16,9 @@ Configuration is managed via environment variables and CLI arguments.
 | `LLM_PROVIDER` | LLM provider (`ollama` or `openai`) | `ollama` |
 | `OPENAI_BASE_URL` | Base URL for OpenAI-compatible API | `https://openrouter.ai/api/v1` |
 | `OLLAMA_BASE_URL` | Base URL for Ollama-compatible API | `http://localhost:11434` |
-| `CURRENT_DIRECTORY` | Working directory for the server | `./` |
 
 Example `.env` file:
+
 ```ini
 LLM_API_KEY=your-api-key
 LLM_MODEL=qwen2.5-coder:latest
@@ -42,6 +42,7 @@ LLM_PROVIDER=ollama
 | `--stream` | Enable streaming mode | `--stream` |
 
 Example CLI usage:
+
 ```bash
 python main.py --model qwen2.5-coder:latest --port 8000 --provider ollama
 ```
@@ -55,6 +56,7 @@ python main.py --model qwen2.5-coder:latest --port 8000 --provider ollama
 ## Request/Response Format
 
 ### Request (POST /user_request)
+
 ```json
 {
     "input": "user message"
@@ -62,6 +64,7 @@ python main.py --model qwen2.5-coder:latest --port 8000 --provider ollama
 ```
 
 ### Response
+
 ```json
 {
     "request_id": "uuid",
@@ -80,6 +83,7 @@ python main.py --model qwen2.5-coder:latest --port 8000 --provider ollama
 ```
 
 ### Tool Approval (POST /approve)
+
 ```json
 {
     "request_id": "uuid",

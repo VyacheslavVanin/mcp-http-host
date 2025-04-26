@@ -5,6 +5,7 @@ import re
 import uuid
 import xml
 import xmltodict
+from typing import Any
 from enum import Enum
 
 from .server import Server
@@ -76,6 +77,7 @@ class ChatSession:
         self._pending_request_id: str | None = None
         self._pending_tool_call: dict | None = None
         self.current_directory: str = current_directory
+        self.tools: dict[str, list[Any]] = dict()
 
     async def init_servers(self) -> bool:
         """Initialize all servers.
@@ -87,6 +89,7 @@ class ChatSession:
             for server in self.servers:
                 try:
                     await server.initialize()
+                    self.tools[server.name] = await server.list_tools()
                 except Exception as e:
                     logging.error(f"Failed to initialize server: {e}")
                     await self.cleanup_servers()
@@ -125,7 +128,7 @@ class ChatSession:
         """Initialize the system message with tool descriptions."""
         all_tools = []
         for server in self.servers:
-            tools = await server.list_tools()
+            tools = self.tools[server.name]
             all_tools.extend(tools)
 
         tools_description = "\n".join([tool.format_for_llm() for tool in all_tools])
@@ -311,7 +314,7 @@ Yor current directory is {self.current_directory}
         try:
             tool_call = self._pending_tool_call
             for server in self.servers:
-                tools = await server.list_tools()
+                tools = self.tools[server.name]
                 if any(tool.name == tool_call["tool"] for tool in tools):
                     result = await server.execute_tool(
                         tool_call["tool"], tool_call["arguments"]
