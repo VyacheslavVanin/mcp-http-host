@@ -10,7 +10,6 @@ from core.json_reconstruct import JsonReconstruct
 
 
 def iso8601_to_unixtimestamp(date_str):
-    # return int(datetime.datetime.strptime(date_string, "%Y-%m-%dT%H:%M:%S.%fZ").timestamp())
     if "." in date_str and "Z" in date_str:
         # Split into main part and fractional seconds + timezone
         date_part, rest = date_str.split(".", 1)

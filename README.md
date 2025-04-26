@@ -1,159 +1,111 @@
-# MCP Host CLI
+# LLM Chat Server
 
-A FastAPI-based CLI application that hosts and manages MCP (Model Context Protocol) servers, providing an HTTP API for interacting with tools and resources.
-
-## Features
-
-- Manages multiple MCP server connections
-- Provides HTTP API endpoints for:
-  - User requests
-  - Tool approval workflow
-  - Session state management
-- Supports both direct LLM API and Ollama local models
-
-## Installation
-
-1. Clone the repository:
-
-```bash
-git clone https://github.com/VyacheslavVanin/mcp-host-cli.git
-cd mcp-host-cli
-```
-
-2. Run:
-
-```bash
-uv run main.py
-```
+FastAPI server for chat interactions with LLMs (Ollama or OpenAI).
 
 ## Configuration
 
-### Server Configuration
+Configuration is managed via environment variables and CLI arguments.
 
-1. Create/edit `servers_config.json` to configure your MCP servers:
+### Environment Variables
 
-```json
-{
-  "mcpServers": {
-    "server-name": {
-      "command": "node",
-      "args": ["path/to/server.js"],
-      "env": {
-        "API_KEY": "your-api-key"
-      }
-    }
-  }
-}
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `LLM_API_KEY` | API key for LLM provider | - |
+| `LLM_MODEL` | Model name to use | `qwen2.5-coder:latest` |
+| `PORT` | Port to run server on | `8000` |
+| `LLM_PROVIDER` | LLM provider (`ollama` or `openai`) | `ollama` |
+| `OPENAI_BASE_URL` | Base URL for OpenAI-compatible API | `https://openrouter.ai/api/v1` |
+| `OLLAMA_BASE_URL` | Base URL for Ollama-compatible API | `http://localhost:11434` |
+| `CURRENT_DIRECTORY` | Working directory for the server | `./` |
+
+Example `.env` file:
+```ini
+LLM_API_KEY=your-api-key
+LLM_MODEL=qwen2.5-coder:latest
+PORT=8000
+LLM_PROVIDER=ollama
 ```
 
-### Application Configuration
+### CLI Arguments
 
-Configuration can be set via environment variables or command line arguments (CLI args take precedence).
+| Argument | Description | Example |
+|----------|-------------|---------|
+| `--model` | LLM model to use | `--model qwen2.5-coder:latest` |
+| `--port` | Port to run server on | `--port 8000` |
+| `--provider` | LLM provider (`ollama` or `openai`) | `--provider ollama` |
+| `--openai-base-url` | Base URL for OpenAI API | `--openai-base-url https://api.openai.com/v1` |
+| `--ollama-base-url` | Base URL for Ollama API | `--ollama-base-url http://localhost:11434` |
+| `--servers-config` | Path to servers config file | `--servers-config config/servers.json` |
+| `--current-directory` | Working directory | `--current-directory /projects` |
+| `--context-window-size` | Context window size | `--context-window-size 2048` |
+| `--temperature` | Temperature parameter | `--temperature 0.7` |
+| `--stream` | Enable streaming mode | `--stream` |
 
-#### Environment Variables
-
-- `LLM_API_KEY`: API key for LLM service (if not using Ollama)
-- `LLM_PROVIDER`: "ollama" (default) or "openai"
-- `LLM_MODEL`: Model name (default: "qwen2.5-coder:latest")
-- `PORT`: Server port (default: 8000)
-- `OPENAI_BASE_URL`: Base URL for OpenAI-compatible API (default: "<https://openrouter.ai/api/v1>")
-- `USE_OLLAMA`: Set to "true" to use local Ollama models
-
-#### Command Line Arguments
-
+Example CLI usage:
 ```bash
-python main.py --model MODEL_NAME --port PORT_NUMBER --provider PROVIDER --openai-base-url URL
-```
-
-Where:
-
-- PROVIDER is either "ollama" (default) or "openai"
-- URL is the base URL for OpenAI-compatible API (default: "<https://openrouter.ai/api/v1>")
-
-#### Configuration Precedence
-
-1. Command line arguments (highest priority)
-2. Environment variables
-3. Default values (lowest priority)
-
-#### Examples
-
-```bash
-# Using environment variables
-export LLM_MODEL="llama3:latest"
-export PORT=8080
-python main.py
-
-# Using CLI arguments
-python main.py --model "llama3:latest" --port 8080
-
-# Using defaults
-python main.py
+python main.py --model qwen2.5-coder:latest --port 8000 --provider ollama
 ```
 
 ## API Endpoints
 
-### POST /user_request
+- `POST /user_request` - Handle user chat requests
+- `POST /approve` - Handle tool approval/denial
+- `GET /session_state` - Get current session state
 
-Handle user input and return LLM response or tool approval request.
+## Request/Response Format
 
-Request:
-
+### Request (POST /user_request)
 ```json
 {
-  "input": "your question or command"
+    "input": "user message"
 }
 ```
 
-Response:
-
+### Response
 ```json
 {
-  "message": "response text",
-  "request_id": "uuid-if-approval-needed",
-  "requires_approval": true/false,
-  "tool": "tool-name-if-applicable"
+    "request_id": "uuid",
+    "requires_approval": true,
+    "tool": {
+        "name": "tool-name",
+        "arguments": {
+            "arg1": "value1",
+            "arg2": "value2"
+        }
+    },
+    "message": "response content",
+    "model": "model-name",
+    "role": "assistant"
 }
 ```
 
-### POST /approve
-
-Approve or deny a tool execution request.
-
-Request:
-
+### Tool Approval (POST /approve)
 ```json
 {
-  "request_id": "uuid-from-user_request",
-  "approve": true/false
+    "request_id": "uuid",
+    "approve": true
 }
 ```
 
-Response:
+## Example Usage
 
-```json
-{
-  "message": "execution result or denial message",
-  "request_id": "same-request-id",
-  "tool": "tool-name"
-}
-```
+```python
+import requests
 
-### GET /session_state
+# Start session
+response = requests.post("http://localhost:8000/start_session", json={
+    "current_directory": "/projects",
+    "llm_provider": "ollama",
+    "model": "qwen2.5-coder:latest"
+})
 
-Get current chat session state including messages and pending requests.
+# Send message
+response = requests.post("http://localhost:8000/user_request", json={
+    "input": "Hello, how are you?"
+})
 
-Response:
-
-```json
-{
-  "messages": [
-    {"role": "system/user/assistant", "content": "message text"}
-  ],
-  "_pending_request_id": "uuid-or-null",
-  "_pending_tool_call": {
-    "tool": "tool-name",
-    "arguments": {}
-  }
-}
-```
+# Approve tool call
+response = requests.post("http://localhost:8000/approve", json={
+    "request_id": "12345",
+    "approve": true
+})
