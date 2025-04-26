@@ -66,20 +66,14 @@ class LLMClient:
         Raises:
             httpx.RequestError: If the request to the LLM fails.
         """
-        base_url = (
-            self.config.openai_base_url
-            if self.config
-            else "https://openrouter.ai/api/v1"
-        )
+        base_url = self.config.openai_base_url
         url = f"{base_url}/chat/completions"
-        model = (
-            self.config.model if self.config.model else "llama-3.2-90b-vision-preview"
-        )
+        model = self.config.model
         api_key = self.config.api_key
 
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.api_key}",
+            "Authorization": f"Bearer {api_key}",
         }
         payload = {
             "messages": messages,
@@ -126,6 +120,93 @@ class LLMClient:
                 "",
                 int(time.time()),
                 end=True,
+            )
+
+    def get_response_stream(self, messages: list[dict[str, str]]) -> Response:
+        """Get a response from the local Ollama server.
+
+        Args:
+            messages: A list of message dictionaries.
+
+        Returns:
+            The LLM's response as a string.
+
+        Raises:
+            httpx.RequestError: If the request to Ollama fails.
+        """
+        url = self.config.openai_base_url + "/chat/completions"
+        model = self.config.model
+        api_key = self.config.api_key
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+        }
+        payload = {
+            "messages": messages,
+            "model": model,
+            "max_tokens": 16384,
+            "top_p": 0.9,
+            "stream": True,
+            "stop": None,
+        }
+        if self.config.temperature:
+            payload["temperature"] = self.config.temperature
+
+        try:
+            with httpx.stream("POST", url, json=payload, headers=headers, timeout=None) as response:
+                ret: Response = Response(
+                    "assistant", "", model, time.time(), end=True,
+                )
+                from pprint import pprint
+
+                def cb(obj):
+                    nonlocal ret
+
+                    print('+++++++++')
+                    pprint(obj)
+                    choice = obj["choices"][0]
+                    message = choice["delta"]
+                    role = message.get("role", "assistant")
+                    content = message.get("content", "")
+                    created = obj["created"]
+                    end = choice["finish_reason"] != None
+                    ret = Response(
+                         role,
+                         content,
+                         model,
+                         created,
+                         end=end,
+                    )
+
+                jr = JsonReconstruct()
+                for chunk in response.iter_text():
+                    print('----------')
+                    pprint(chunk)
+                    lines = chunk.split('\n')
+                    for line in lines:
+                        if jr.buffer == "" and not line.startswith('data: '):
+                            continue
+
+                        jr.process_part(chunk[6:], cb)
+                        if ret:
+                            yield ret
+                            ret = Response(
+                                "assistant", "", model, time.time(), end=True,
+                            )
+                jr.finalize(cb)
+                yield ret
+        except httpx.RequestError as e:
+            error_message = f"Error getting Ollama response: {str(e)}"
+            logging.error(error_message)
+
+            if isinstance(e, httpx.HTTPStatusError):
+                status_code = e.response.status_code
+                logging.error(f"Status code: {status_code}")
+                logging.error(f"Response details: {e.response.text}")
+
+            return (
+                f"I encountered an error: {error_message}. "
+                "Please try again or rephrase your request."
             )
 
 

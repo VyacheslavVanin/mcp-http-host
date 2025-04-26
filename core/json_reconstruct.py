@@ -12,7 +12,6 @@ class JsonReconstruct:
                 callback(decoded)
                 return
             except json.JSONDecodeError:
-                print(f"!!! failed decode: {chunk}")
                 self.buffer += chunk
                 return
 
@@ -22,7 +21,6 @@ class JsonReconstruct:
             callback(decoded)
             self.buffer = ""
         except json.JSONDecodeError:
-            print(f"!!! failed decode: {self.buffer}")
             pass
 
     def finalize(self, callback):
