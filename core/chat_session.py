@@ -148,6 +148,9 @@ IMPORTANT: When you need to use a tool, you must ONLY respond with the exact for
         <another-argument-name>another-value</another-argument-name>
     </arguments>
 </use_tool>
+
+You can only use one tool per message. If you need execute multiple tools ask for execution one by one.
+
 After receiving a tool's response:
 1. Transform the raw data into a natural, conversational response
 2. Keep responses concise but informative
