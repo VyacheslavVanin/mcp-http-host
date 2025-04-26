@@ -33,11 +33,14 @@ def LLMResponse(
 ) -> dict:
     tool = None
     if tool_call:
-        tool_text = f"{tool_call['tool']}("
-        for k, v in tool_call["arguments"].items():
-            tool_text += f'"{k}": "{v}",'
-        tool_text += ")"
-        tool = tool_text
+        tool = dict()
+        tool["name"] = tool_call['tool']
+        arguments = tool_call.get("arguments")
+        if arguments:
+            tool["arguments"] = dict()
+            for k, v in arguments.items():
+                tool["arguments"][k] = f"{v}"
+
     ret = dict()
     ret["request_id"] = request_id
     ret["requires_approval"] = request_id is not None
