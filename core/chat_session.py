@@ -14,12 +14,7 @@ from .llm_client import LLMClient, Response
 from fastapi.responses import StreamingResponse
 
 
-def get_xmldict_in_tags(text, tag):
-    pattern = r"(<{0}>(.*?)<\/{0}>)".format(tag)
-    matches = re.findall(pattern, text, re.DOTALL)
-    if len(matches) != 1:
-        return dict()
-    return xmltodict.parse(matches[0][0])["use_tool"]
+def extract_tool_call(text, tag):
 
 
 class ChatContinuation(Enum):
@@ -115,8 +110,12 @@ class ChatSession:
             except Exception as e:
                 logging.warning(f"Warning during final cleanup: {e}")
 
-    def try_get_tool_call(self, llm_response: str) -> str:
-        return get_xmldict_in_tags(llm_response, "use_tool")
+    def try_get_tool_call(self, text: str) -> str:
+        pattern = r"BEGIN_USE_TOOL(.*?)END_USE_TOOL"
+        matches = re.findall(pattern, text, re.DOTALL)
+        if len(matches) != 1:
+            return dict()
+        return json.loads(matches[0])
 
     def _append_llm_response(self, message):
         self.messages.append({"role": "assistant", "content": message})
@@ -135,19 +134,42 @@ class ChatSession:
             all_tools.extend(tools)
 
         tools_description = "\n".join([tool.format_for_llm() for tool in all_tools])
-        sys_content = f"""
-You are a helpful assistant with access to these tools:
+        system_prompt_content = f"""
+You are a helpful and highly skilled software developer assistant with access to these tools:
 {tools_description}
 Choose the appropriate tool based on the user's question. If no tool is needed, reply directly.
+If user wants to create some application then look in current directory for more clues. Then create necessary files or modify existing.
 
-IMPORTANT: When you need to use a tool, you must ONLY respond with the exact format below:
-<use_tool>
-    <tool> tool-name </tool>
-    <arguments>
-        <argument-name>value</argument-name>
-        <another-argument-name>another-value</another-argument-name>
-    </arguments>
-</use_tool>
+IMPORTANT: When you need to use a tool, you must ONLY respond with the exact this format below (json between two tags):
+BEGIN_USE_TOOL
+{{
+    "tool": "tool-name",
+    "arguments": {{
+        "argument-name": "value",
+        "another-argument-name": "another-value"
+    }}
+}}
+END_USE_TOOL
+
+# Tool Use Guidelines
+
+1. In <thinking> tags, assess what information you already have and what information you need to proceed with the task.
+2. Choose the most appropriate tool based on the task and the tool descriptions provided. Assess if you need additional information to proceed, and which of the available tools would be most effective for gathering this information. For example using the list_files tool is more effective than running a command like `ls` in the terminal. It's critical that you think about each available tool and use the one that best fits the current step in the task.
+3. If multiple actions are needed, use one tool at a time per message to accomplish the task iteratively, with each tool use being informed by the result of the previous tool use. Do not assume the outcome of any tool use. Each step must be informed by the previous step's result.
+4. After each tool use, the system will respond with the result of that tool use. This result will provide you with the necessary information to continue your task or make further decisions. This response may include:
+  - Information about whether the tool succeeded or failed, along with any reasons for failure.
+  - Linter errors that may have arisen due to the changes you made, which you'll need to address.
+  - New terminal output in reaction to the changes, which you may need to consider or act upon.
+  - Any other relevant feedback or information related to the tool use.
+6. ALWAYS wait for user confirmation after each tool use before proceeding. Never assume the success of a tool use without explicit confirmation of the result from the system.
+
+It is crucial to proceed step-by-step, waiting for the user's message after each tool use before moving forward with the task. This approach allows you to:
+1. Confirm the success of each step before proceeding.
+2. Address any issues or errors that arise immediately.
+3. Adapt your approach based on new information or unexpected results.
+4. Ensure that each action builds correctly on the previous ones.
+
+By waiting for and carefully considering the user's or system response after each tool use, you can react accordingly and make informed decisions about how to proceed with the task. This iterative process helps ensure the overall success and accuracy of your work.
 
 You can only use one tool per message. If you need execute multiple tools ask for execution one by one.
 
@@ -164,7 +186,7 @@ Yor current directory is {self.current_directory}
         self.messages = [
             {
                 "role": "system",
-                "content": sys_content,
+                "content": system_prompt_content,
             }
         ]
         self._pending_request_id = None
@@ -235,7 +257,8 @@ Yor current directory is {self.current_directory}
 
             self._append_llm_response(llm_response)
             yield LLMStreamResponse("", end=True)
-        except (json.JSONDecodeError, AttributeError, xml.parsers.expat.ExpatError):
+        except (json.JSONDecodeError, AttributeError, xml.parsers.expat.ExpatError) as e:
+            print(f'Error in tool call: {e}')
             self._append_llm_response(llm_response)
             yield LLMStreamResponse("", end=True)
 
