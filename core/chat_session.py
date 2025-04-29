@@ -14,9 +14,6 @@ from .llm_client import LLMClient, Response
 from fastapi.responses import StreamingResponse
 
 
-def extract_tool_call(text, tag):
-
-
 class ChatContinuation(Enum):
     PROMPT = 0  # User entered a prompt
     RESET_CHAT = 1  # User requested chat reset
