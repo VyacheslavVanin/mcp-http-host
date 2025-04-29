@@ -134,10 +134,12 @@ class ChatSession:
         system_prompt_content = f"""
 You are a helpful and highly skilled software developer assistant with access to these tools:
 {tools_description}
+
+With these tools you must help user with their task.
 Choose the appropriate tool based on the user's question. If no tool is needed, reply directly.
 If user wants to create some application then look in current directory for more clues. Then create necessary files or modify existing.
 
-IMPORTANT: When you need to use a tool, you must ONLY respond with the exact this format below (json between two tags):
+IMPORTANT: When you need to use a tool, you must ONLY respond with the exact this format below (json between BEGIN_USE_TOOL and END_USE_TOOL):
 BEGIN_USE_TOOL
 {{
     "tool": "tool-name",
@@ -147,6 +149,7 @@ BEGIN_USE_TOOL
     }}
 }}
 END_USE_TOOL
+
 
 # Tool Use Guidelines
 
@@ -335,6 +338,7 @@ Yor current directory is {self.current_directory}
         if not approve:
             self._pending_request_id = None
             self._pending_tool_call = None
+            self._append_system_message(f"User denied tool execution")
             return LLMResponse("Tool execution denied")
 
         try:
@@ -346,7 +350,7 @@ Yor current directory is {self.current_directory}
                         tool_call["tool"], tool_call["arguments"]
                     )
 
-                    self._append_system_message(f"Tool execution result: {result}")
+                    self._append_system_message(f"User approved tool execution. Tool execution result: {result}")
 
                     self._pending_request_id = None
                     self._pending_tool_call = None
@@ -366,6 +370,7 @@ Yor current directory is {self.current_directory}
                 tool_call=self._pending_tool_call,
             )
         except Exception as e:
+            self._append_system_message(f"Tool execution failed with error {str(e)}")
             return LLMResponse(
                 f"Error executing tool: {str(e)}",
                 request_id=self._pending_request_id,
