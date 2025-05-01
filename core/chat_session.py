@@ -3,8 +3,7 @@ import json
 import logging
 import re
 import uuid
-import xml
-import xmltodict
+import os
 from typing import Any
 from enum import Enum
 
@@ -112,7 +111,16 @@ class ChatSession:
         matches = re.findall(pattern, text, re.DOTALL)
         if len(matches) != 1:
             return dict()
-        return json.loads(matches[0])
+        ret = json.loads(matches[0])
+
+        # convert relative path to absolute
+        arguments = ret.get("arguments")
+        if arguments:
+            path: str = arguments.get("path")
+            if path and not path.startswith("/"):
+                arguments["path"] = os.path.join(self.current_directory, path)
+
+        return ret
 
     def _append_llm_response(self, message):
         self.messages.append({"role": "assistant", "content": message})
@@ -231,7 +239,7 @@ Yor current directory is {self.current_directory}
 
             self._append_llm_response(content)
             return llm_response
-        except (json.JSONDecodeError, AttributeError, xml.parsers.expat.ExpatError):
+        except (json.JSONDecodeError, AttributeError):
             self._append_llm_response(content)
             return llm_response
 
@@ -257,7 +265,7 @@ Yor current directory is {self.current_directory}
 
             self._append_llm_response(llm_response)
             yield LLMStreamResponse("", end=True)
-        except (json.JSONDecodeError, AttributeError, xml.parsers.expat.ExpatError) as e:
+        except (json.JSONDecodeError, AttributeError) as e:
             print(f'Error in tool call: {e}')
             self._append_llm_response(llm_response)
             yield LLMStreamResponse("", end=True)
