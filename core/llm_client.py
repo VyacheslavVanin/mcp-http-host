@@ -144,7 +144,7 @@ class OllamaClient:
         url = self.config.ollama_base_url + "/api/chat"
         model = self.config.model
 
-        payload = {"model": model, "messages": messages, "stream": False}
+        payload = {"model": model, "messages": messages, "stream": False, "options": dict()}
         if self.config.temperature:
             payload["options"]["temperature"] = self.config.temperature
         if self.config.context_window_size:
@@ -187,7 +187,7 @@ class OllamaClient:
         url = self.config.ollama_base_url + "/api/chat"
         model = self.config.model
 
-        payload = {"model": model, "messages": messages, "stream": True}
+        payload = {"model": model, "messages": messages, "stream": True, "options": dict()}
         if self.config.temperature:
             payload["options"]["temperature"] = self.config.temperature
         if self.config.context_window_size:
