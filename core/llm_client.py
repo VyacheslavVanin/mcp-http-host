@@ -28,6 +28,11 @@ def iso8601_to_unixtimestamp(date_str):
     return dt.timestamp()
 
 
+def _rate_limit(rps:int):
+    delay: float = 1.0 / rps
+    time.sleep(delay)
+
+
 class Response:
     def __init__(
         self,
@@ -72,6 +77,7 @@ class LLMClient:
         model = self.config.model
         api_key = self.config.api_key
 
+        _rate_limit(self.config.max_rps)
         client = OpenAI(base_url=base_url, api_key=api_key)
         response = client.chat.completions.create(
             model=model,
@@ -97,6 +103,7 @@ class LLMClient:
         model = self.config.model
         api_key = self.config.api_key
 
+        _rate_limit(self.config.max_rps)
         client = OpenAI(base_url=base_url, api_key=api_key)
         response = client.chat.completions.create(
             model=model,
@@ -150,6 +157,7 @@ class OllamaClient:
         if self.config.context_window_size:
             payload["options"]["num_ctx"] = self.config.context_window_size
 
+        _rate_limit(self.config.max_rps)
         try:
             with httpx.Client() as client:
                 response = client.post(url, json=payload, timeout=None)
@@ -193,6 +201,7 @@ class OllamaClient:
         if self.config.context_window_size:
             payload["options"]["num_ctx"] = self.config.context_window_size
 
+        _rate_limit(self.config.max_rps)
         try:
             with httpx.stream("POST", url, json=payload, timeout=None) as response:
                 ret: Response = Response(
@@ -228,7 +237,7 @@ class OllamaClient:
                 jr.finalize(cb)
                 yield ret
         except httpx.RequestError as e:
-            error_message = f"Error getting Ollama response: {str(e)}"
+            error_message = f"Error getting response: {str(e)}"
             logging.error(error_message)
 
             if isinstance(e, httpx.HTTPStatusError):

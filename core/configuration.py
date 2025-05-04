@@ -43,6 +43,7 @@ class Configuration:
         )
         self.temperature = float(args.temperature) if args.temperature else None
         self.stream: bool = bool(args.stream)
+        self.max_rps: int = int(args.max_rps) if args.max_rps else 100
 
     @staticmethod
     def parse_args():
@@ -90,6 +91,12 @@ class Configuration:
             type=bool,
             action=argparse.BooleanOptionalAction,
             default=False,
+        )
+        parser.add_argument(
+            "--max-rps",
+            help="Limit requests to llm provider",
+            type=int,
+            default=100,
         )
         return parser.parse_args()
 
