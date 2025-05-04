@@ -8,7 +8,7 @@ from typing import Any
 from enum import Enum
 
 from .server import Server
-from .llm_client import LLMClient, Response
+from .llm_client_base import LLMClientBase, Response
 
 from fastapi.responses import StreamingResponse
 
@@ -25,7 +25,7 @@ def LLMResponse(
     tool = None
     if tool_call:
         tool = dict()
-        tool["name"] = tool_call['tool']
+        tool["name"] = tool_call["tool"]
         arguments = tool_call.get("arguments")
         if arguments:
             tool["arguments"] = dict()
@@ -63,10 +63,10 @@ class ChatSession:
     """Orchestrates the interaction between user, LLM, and tools."""
 
     def __init__(
-        self, current_directory: str, servers: list[Server], llm_client: LLMClient
+        self, current_directory: str, servers: list[Server], llm_client: LLMClientBase
     ) -> None:
         self.servers: list[Server] = servers
-        self.llm_client: LLMClient = llm_client
+        self.llm_client: LLMClientBase = llm_client
         self.messages: list[dict[str, str]] = []
         self._pending_request_id: str | None = None
         self._pending_tool_call: dict | None = None
@@ -266,7 +266,7 @@ Yor current directory is {self.current_directory}
             self._append_llm_response(llm_response)
             yield LLMStreamResponse("", end=True)
         except (json.JSONDecodeError, AttributeError) as e:
-            print(f'Error in tool call: {e}')
+            print(f"Error in tool call: {e}")
             self._append_llm_response(llm_response)
             yield LLMStreamResponse("", end=True)
 
@@ -358,7 +358,9 @@ Yor current directory is {self.current_directory}
                         tool_call["tool"], tool_call["arguments"]
                     )
 
-                    self._append_system_message(f"User approved tool execution. Tool execution result: {result}")
+                    self._append_system_message(
+                        f"User approved tool execution. Tool execution result: {result}"
+                    )
 
                     self._pending_request_id = None
                     self._pending_tool_call = None

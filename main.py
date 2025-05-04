@@ -10,7 +10,7 @@ from core.configuration import Configuration
 
 from core.server import Server
 from core.chat_session import ChatSession
-from core.llm_client import LLMClient, OllamaClient
+from core.llm_client import OpenaiClient, OllamaClient
 
 # Configure logging
 logging.basicConfig(
@@ -66,7 +66,7 @@ async def startup_event():
     if config.use_ollama:
         llm_client = OllamaClient(copy.deepcopy(config))
     else:
-        llm_client = LLMClient(copy.deepcopy(config))
+        llm_client = OpenaiClient(copy.deepcopy(config))
 
     chat_session = ChatSession(config.current_directory, servers, llm_client)
     if not await chat_session.init_session():
@@ -121,7 +121,7 @@ async def start_session(request: StartSession) -> dict:
         if request.provider_base_url:
             llm_client.config.ollama_base_url = request.provider_base_url
     elif request.llm_provider == "openai":
-        llm_client = LLMClient(copy.deepcopy(config))
+        llm_client = OpenaiClient(copy.deepcopy(config))
         if request.provider_base_url:
             llm_client.config.openai_base_url = request.provider_base_url
     if request.model:

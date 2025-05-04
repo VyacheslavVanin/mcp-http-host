@@ -7,6 +7,7 @@ from openai import OpenAI, AsyncOpenAI
 
 from core.configuration import Configuration
 from core.json_reconstruct import JsonReconstruct
+from core.llm_client_base import LLMClientBase, Response
 
 
 def iso8601_to_unixtimestamp(date_str):
@@ -28,44 +29,16 @@ def iso8601_to_unixtimestamp(date_str):
     return dt.timestamp()
 
 
-def _rate_limit(rps:int):
+def _rate_limit(rps: int):
     delay: float = 1.0 / rps
     time.sleep(delay)
 
 
-class Response:
-    def __init__(
-        self,
-        role: str,
-        content: str,
-        model: str,
-        created_timestamp: int,
-        end: bool = False,
-    ):
-        self.content: str = content
-        self.role: str = role
-        self.model: str = model
-        self.created_timestamp: int = created_timestamp
-        self.done: bool = end
-
-    def to_dict(self):
-        return {
-            "content": self.content,
-            "role": self.role,
-            "model": self.model,
-            "created_timestamp": self.created_timestamp,
-            "done": self.done,
-        }
-
-
-class LLMClient:
+class OpenaiClient(LLMClientBase):
     """Manages communication with the LLM provider."""
 
-    def __init__(
-        self,
-        config: Configuration = None,
-    ) -> None:
-        self.config = config
+    def __init__(self, config: Configuration = None) -> None:
+        super().__init__(config)
 
     def get_response(self, messages: list[dict[str, str]]) -> Response:
         """Get a response from the LLM.
@@ -125,16 +98,11 @@ class LLMClient:
             )
 
 
-class OllamaClient:
+class OllamaClient(LLMClientBase):
     """Manages communication with a local Ollama server."""
 
     def __init__(self, config: Configuration = None) -> None:
-        """Initialize the Ollama client.
-
-        Args:
-            model: The model name to use (default: "llama3")
-        """
-        self.config = config
+        super().__init__(config)
 
     def get_response(self, messages: list[dict[str, str]]) -> str:
         """Get a response from the local Ollama server.
@@ -151,7 +119,12 @@ class OllamaClient:
         url = self.config.ollama_base_url + "/api/chat"
         model = self.config.model
 
-        payload = {"model": model, "messages": messages, "stream": False, "options": dict()}
+        payload = {
+            "model": model,
+            "messages": messages,
+            "stream": False,
+            "options": dict(),
+        }
         if self.config.temperature:
             payload["options"]["temperature"] = self.config.temperature
         if self.config.context_window_size:
@@ -195,7 +168,12 @@ class OllamaClient:
         url = self.config.ollama_base_url + "/api/chat"
         model = self.config.model
 
-        payload = {"model": model, "messages": messages, "stream": True, "options": dict()}
+        payload = {
+            "model": model,
+            "messages": messages,
+            "stream": True,
+            "options": dict(),
+        }
         if self.config.temperature:
             payload["options"]["temperature"] = self.config.temperature
         if self.config.context_window_size:
