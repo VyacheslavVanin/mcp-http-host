@@ -30,8 +30,12 @@ class LLMClientBase:
     def __init__(self, config: Configuration = None) -> None:
         self.config = config
 
+    # messages looks like this:
+    # [{"role": "user", "content": "how many letters in word strawberry?"}]
     def get_response(self, messages: list[dict[str, str]]) -> Response:
         raise NotImplementedError("This method should be overridden by subclasses")
 
+    # messages looks like this:
+    # [{"role": "user", "content": "how many letters in word strawberry?"}]
     def get_response_stream(self, messages: list[dict[str, str]]) -> Response:
         raise NotImplementedError("This method should be overridden by subclasses")
