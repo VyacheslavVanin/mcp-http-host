@@ -107,7 +107,9 @@ class ChatSession:
                 logging.warning(f"Warning during final cleanup: {e}")
 
     def try_get_tool_call(self, text: str) -> str:
-        pattern = r"BEGIN_USE_TOOL(.*?)END_USE_TOOL"
+        # need to replace to kinda escape this tags to be able use tools
+        # on this file)
+        pattern = r"BEGIN-USE-TOOL(.*?)END-USE-TOOL".replace("-", "_")
         matches = re.findall(pattern, text, re.DOTALL)
         if len(matches) != 1:
             return dict()
@@ -148,7 +150,7 @@ Choose the appropriate tool based on the user's question. If no tool is needed, 
 If user wants to create some application then look in current directory for more clues. Then create necessary files or modify existing.
 
 IMPORTANT: When you need to use a tool, you must ONLY respond with the exact this format below (json between BEGIN_USE_TOOL and END_USE_TOOL):
-BEGIN_USE_TOOL
+{"BEGIN-USE-TOOL".replace('-', '_')}
 {{
     "tool": "tool-name",
     "arguments": {{
@@ -156,7 +158,7 @@ BEGIN_USE_TOOL
         "another-argument-name": "another-value"
     }}
 }}
-END_USE_TOOL
+{"END-USE-TOOL".replace('-', '_')}
 
 
 # Tool Use Guidelines
@@ -188,6 +190,13 @@ After receiving a tool's response:
 4. Use appropriate context from the user's question
 5. Avoid simply repeating the raw data
 Please use only the tools that are explicitly defined above.
+
+When you use the 'read_file' tool do not reply with file content unless asked explicitly (user can see files himself).
+When you use the 'edit_files' or 'write_whole_file' tools do not reply with resulting file to user.
+Prefere to use 'edit_files' over 'write_whole_file' if file already exists.
+Use 'write_whle_file' to create file or overwrite whole file if it is small.
+If you you need create large file (more than 100 lines) create some skeleton file and then use series of 'edit_files' by about 50 lines.
+
 Yor current directory is {self.current_directory}
 """
 

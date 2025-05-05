@@ -51,7 +51,7 @@ class OpenaiClient(LLMClientBase):
         api_key = self.config.api_key
 
         _rate_limit(self.config.max_rps)
-        client = OpenAI(base_url=base_url, api_key=api_key)
+        client = OpenAI(base_url=base_url, api_key=api_key, timeout=60)
         response = client.chat.completions.create(
             model=model,
             messages=messages,
@@ -77,7 +77,7 @@ class OpenaiClient(LLMClientBase):
         api_key = self.config.api_key
 
         _rate_limit(self.config.max_rps)
-        client = OpenAI(base_url=base_url, api_key=api_key)
+        client = OpenAI(base_url=base_url, api_key=api_key, timeout=60)
         response = client.chat.completions.create(
             model=model,
             messages=messages,
