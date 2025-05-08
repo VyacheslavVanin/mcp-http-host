@@ -43,6 +43,7 @@ class StartSession(BaseModel):
 
 class UserRequest(BaseModel):
     input: str
+    context: str | None
 
 
 class ApproveRequest(BaseModel):
@@ -84,13 +85,13 @@ async def handle_user_request(request: UserRequest) -> dict:
         return validation
 
     if not chat_session.llm_client.config.stream:
-        response = await chat_session.user_request(request.input)
+        response = await chat_session.user_request(request.input, request.context)
         if response is None:
             raise HTTPException(status_code=400, detail="Invalid request")
 
         return response
     else:
-        return chat_session.user_request_stream(request.input)
+        return chat_session.user_request_stream(request.input, request.context)
 
 
 @app.post("/approve")

@@ -150,7 +150,7 @@ Choose the appropriate tool based on the user's question. If no tool is needed, 
 If user wants to create some application then look in current directory for more clues. Then create necessary files or modify existing.
 
 IMPORTANT: When you need to use a tool, you must ONLY respond with the exact this format below (json between BEGIN_USE_TOOL and END_USE_TOOL):
-{"BEGIN-USE-TOOL".replace('-', '_')}
+{"BEGIN-USE-TOOL".replace("-", "_")}
 {{
     "tool": "tool-name",
     "arguments": {{
@@ -158,7 +158,7 @@ IMPORTANT: When you need to use a tool, you must ONLY respond with the exact thi
         "another-argument-name": "another-value"
     }}
 }}
-{"END-USE-TOOL".replace('-', '_')}
+{"END-USE-TOOL".replace("-", "_")}
 
 
 # Tool Use Guidelines
@@ -193,6 +193,7 @@ Please use only the tools that are explicitly defined above.
 
 When you use the 'read_file' tool do not reply with file content unless asked explicitly (user can see files himself).
 When you use the 'edit_files' or 'write_whole_file' tools do not reply with resulting file to user.
+When you need to write or edit files DO NOT print to user contents of file before of after editing.
 Prefere to use 'edit_files' over 'write_whole_file' if file already exists.
 Use 'write_whle_file' to create file or overwrite whole file if it is small.
 If you you need create large file (more than 100 lines) create some skeleton file and then use series of 'edit_files' by about 50 lines.
@@ -227,7 +228,6 @@ Yor current directory is {self.current_directory}
         if user_input in ["/clear"]:
             await self.init_system_message()
             return (ChatContinuation.RESET_CHAT, user_input)
-        self._append_user_message(user_input)
         return (ChatContinuation.PROMPT, user_input)
 
     async def _llm_request(self, messages) -> dict:
@@ -302,28 +302,42 @@ Yor current directory is {self.current_directory}
             return LLMResponse("Session was reseted")
         return None
 
-    async def user_request(self, user_input: str) -> dict | None:
+    async def user_request(
+        self, user_input: str, system_context: str = ""
+    ) -> dict | None:
         """Handle a user request, potentially involving tool execution.
 
         Args:
             user_input: The user's input string
+            system_context: The additional system info like: "current open file: main.cpp, tabs: ['header.hpp', 'source.cpp']"
 
         Returns:
             str: The LLM response or tool approval request
             None: For exit/reset commands
         """
+
+        if system_context:
+            self._append_system_message(f"additional_context:\n{system_context}\n")
+        self._append_user_message(user_input)
         return await self._llm_request(self.messages)
 
-    def user_request_stream(self, user_input: str) -> dict | None:
+    def user_request_stream(
+        self, user_input: str, system_context: str = ""
+    ) -> dict | None:
         """Handle a user request, potentially involving tool execution.
 
         Args:
             user_input: The user's input string
+            system_context: The additional system info like: "current open file: main.cpp, tabs: ['header.hpp', 'source.cpp']"
 
         Returns:
             str: The LLM response or tool approval request
             None: For exit/reset commands
         """
+
+        if system_context:
+            self._append_system_message(f"additional_context:\n{system_context}\n")
+        self._append_user_message(user_input)
 
         def stream_generator():
             for r in self._llm_request_stream(self.messages):
