@@ -42,6 +42,8 @@ class Configuration:
             int(args.context_window_size) if args.context_window_size else None
         )
         self.temperature = float(args.temperature) if args.temperature else None
+        self.top_k = float(args.top_k) if args.top_k else None
+        self.top_p = float(args.top_p) if args.top_p else None
         self.stream: bool = bool(args.stream)
         self.max_rps: int = int(args.max_rps) if args.max_rps else 100
 
@@ -83,6 +85,16 @@ class Configuration:
         parser.add_argument(
             "--temperature",
             help="Set temperature",
+            default=None,
+        )
+        parser.add_argument(
+            "--top_k",
+            help="Set top_k",
+            default=None,
+        )
+        parser.add_argument(
+            "--top_p",
+            help="Set top_p",
             default=None,
         )
         parser.add_argument(

@@ -57,6 +57,7 @@ class OpenaiClient(LLMClientBase):
             messages=messages,
             stream=False,
             temperature=self.config.temperature,
+            top_p=self.config.top_p,
         )
 
         model = response.model
@@ -83,6 +84,7 @@ class OpenaiClient(LLMClientBase):
             messages=messages,
             stream=True,
             temperature=self.config.temperature,
+            top_p=self.config.top_p,
         )
         for chunk in response:
             role = chunk.choices[0].delta.role
@@ -127,6 +129,10 @@ class OllamaClient(LLMClientBase):
         }
         if self.config.temperature:
             payload["options"]["temperature"] = self.config.temperature
+        if self.config.top_p:
+            payload["options"]["top_p"] = self.config.top_p
+        if self.config.top_k:
+            payload["options"]["top_k"] = self.config.top_k
         if self.config.context_window_size:
             payload["options"]["num_ctx"] = self.config.context_window_size
 
