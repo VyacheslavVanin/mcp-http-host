@@ -374,15 +374,16 @@ Yor current directory is {self.current_directory}
 
         try:
             tool_call = self._pending_tool_call
+            tool_name = tool_call["tool"]
             for server in self.servers:
                 tools = self.tools[server.name]
-                if any(tool.name == tool_call["tool"] for tool in tools):
+                if any(tool.name == tool_name for tool in tools):
                     result = await server.execute_tool(
                         tool_call["tool"], tool_call["arguments"]
                     )
 
                     self._append_system_message(
-                        f"User approved tool execution. Tool execution result: {result}"
+                        f"User approved {tool_name} tool execution. {tool_name} tool execution result:\n{result}"
                     )
 
                     self._pending_request_id = None
