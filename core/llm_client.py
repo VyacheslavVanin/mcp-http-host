@@ -133,8 +133,8 @@ class OllamaClient(LLMClientBase):
             payload["options"]["top_p"] = self.config.top_p
         if self.config.top_k:
             payload["options"]["top_k"] = self.config.top_k
-        if self.config.context_window_size:
-            payload["options"]["num_ctx"] = self.config.context_window_size
+        if self.config.context_size:
+            payload["options"]["num_ctx"] = self.config.context_size
 
         _rate_limit(self.config.max_rps)
         try:
@@ -182,8 +182,8 @@ class OllamaClient(LLMClientBase):
         }
         if self.config.temperature:
             payload["options"]["temperature"] = self.config.temperature
-        if self.config.context_window_size:
-            payload["options"]["num_ctx"] = self.config.context_window_size
+        if self.config.context_size:
+            payload["options"]["num_ctx"] = self.config.context_size
 
         _rate_limit(self.config.max_rps)
         try:

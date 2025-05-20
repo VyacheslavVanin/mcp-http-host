@@ -37,7 +37,7 @@ class StartSession(BaseModel):
     provider_base_url: str = "http://localhost:11434"
     api_key: str = ""
     temperature: float = 0.2
-    context_window_size: int = 2048
+    context_size: int = 2048
     stream: bool = False
 
 
@@ -130,7 +130,7 @@ async def start_session(request: StartSession) -> dict:
     if request.api_key:
         llm_client.config.api_key = request.api_key
     llm_client.config.temperature = request.temperature
-    llm_client.config.context_window_size = request.context_window_size
+    llm_client.config.context_size = request.context_size
     llm_client.config.stream = request.stream
 
     await chat_session.init_system_message()

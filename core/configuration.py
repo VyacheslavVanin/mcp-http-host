@@ -38,8 +38,8 @@ class Configuration:
         )
         self.current_directory = args.current_directory
         self.servers_config_path = args.servers_config
-        self.context_window_size = (
-            int(args.context_window_size) if args.context_window_size else None
+        self.context_size = (
+            int(args.context_size) if args.context_size else None
         )
         self.temperature = float(args.temperature) if args.temperature else None
         self.top_k = float(args.top_k) if args.top_k else None
@@ -78,7 +78,7 @@ class Configuration:
             default="./",
         )
         parser.add_argument(
-            "--context-window-size",
+            "--context-size",
             help="Set context window size",
             default=None,
         )
