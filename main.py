@@ -10,7 +10,7 @@ from core.configuration import Configuration
 
 from core.server import Server
 from core.chat_session import ChatSession
-from core.chat_session_manager import ChatSessionManager
+from core.chat_session_manager import ChatSessionManager, ChatType
 from core.llm_client import OpenaiClient, OllamaClient, LLMClientBase
 
 # Configure logging
@@ -40,6 +40,8 @@ class StartSession(BaseModel):
     temperature: float = 0.2
     context_size: int = 2048
     stream: bool = False
+    # Either 'chat' or 'agent'
+    chat_type: str = "chat"
 
 
 class UserRequest(BaseModel):
@@ -134,10 +136,12 @@ async def get_session_state() -> dict:
 async def start_session(request: StartSession) -> dict:
     llm_client = _get_llm_client(request, config)
 
+    chat_type = ChatType[request.chat_type.upper()]
     chat_session, session_id = await session_manager.create_session(
         servers,
         llm_client,
         request.current_directory,
+        chat_type,
     )
 
     os.chdir(request.current_directory)
