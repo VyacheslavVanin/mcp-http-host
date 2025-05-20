@@ -247,10 +247,10 @@ Yor current directory is {self.current_directory}
                 )
 
             self._append_llm_response(content)
-            return llm_response
+            return LLMResponse(llm_response, end=True)
         except (json.JSONDecodeError, AttributeError):
             self._append_llm_response(content)
-            return llm_response
+            return LLMResponse(llm_response, end=True)
 
     def _llm_request_stream(self, messages) -> LLMStreamResponse:
         llm_response = ""

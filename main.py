@@ -10,7 +10,8 @@ from core.configuration import Configuration
 
 from core.server import Server
 from core.chat_session import ChatSession
-from core.llm_client import OpenaiClient, OllamaClient
+from core.chat_session_manager import ChatSessionManager
+from core.llm_client import OpenaiClient, OllamaClient, LLMClientBase
 
 # Configure logging
 logging.basicConfig(
@@ -42,43 +43,58 @@ class StartSession(BaseModel):
 
 
 class UserRequest(BaseModel):
+    session_id: str
     input: str
     context: str | None
 
 
 class ApproveRequest(BaseModel):
+    session_id: str
     request_id: str
     approve: bool
 
 
-chat_session: ChatSession | None = None
+session_manager: ChatSessionManager = ChatSessionManager()
+servers: list[Server] = []
+
+
+def _get_llm_client(request, config) -> LLMClientBase:
+    if request.llm_provider is None or request.llm_provider == "ollama":
+        llm_client = OllamaClient(copy.deepcopy(config))
+        if request.provider_base_url:
+            llm_client.config.ollama_base_url = request.provider_base_url
+    elif request.llm_provider == "openai":
+        llm_client = OpenaiClient(copy.deepcopy(config))
+        if request.provider_base_url:
+            llm_client.config.openai_base_url = request.provider_base_url
+    if request.model:
+        llm_client.config.model = request.model
+    if request.api_key:
+        llm_client.config.api_key = request.api_key
+    llm_client.config.temperature = request.temperature
+    llm_client.config.context_size = request.context_size
+    llm_client.config.stream = request.stream
+    return llm_client
 
 
 @app.on_event("startup")
 async def startup_event():
     """Initialize the chat session on startup."""
-    global chat_session
+    global session_manager
+    global servers
     server_config = config.load_config(config.servers_config_path)
     servers = [
         Server(name, srv_config)
         for name, srv_config in server_config["mcpServers"].items()
     ]
 
-    if config.use_ollama:
-        llm_client = OllamaClient(copy.deepcopy(config))
-    else:
-        llm_client = OpenaiClient(copy.deepcopy(config))
-
-    chat_session = ChatSession(config.current_directory, servers, llm_client)
-    if not await chat_session.init_session():
-        raise RuntimeError("Failed to initialize chat session")
-
 
 @app.post("/user_request")
 async def handle_user_request(request: UserRequest) -> dict:
     """Handle a user request through HTTP endpoint."""
+    chat_session = session_manager.get_session(request.session_id)
     if chat_session is None:
-        raise HTTPException(status_code=503, detail="Service not initialized")
+        raise HTTPException(status_code=404, detail="Session not found")
 
     validation = await chat_session.validate_request(request.input)
     if validation is not None:
@@ -97,8 +113,9 @@ async def handle_user_request(request: UserRequest) -> dict:
 @app.post("/approve")
 async def handle_approval(request: ApproveRequest) -> dict:
     """Handle tool approval/denial through HTTP endpoint."""
+    chat_session = session_manager.get_session(request.session_id)
     if chat_session is None:
-        raise HTTPException(status_code=503, detail="Service not initialized")
+        raise HTTPException(status_code=404, detail="Session not found")
 
     return await chat_session.approve(request.request_id, request.approve)
 
@@ -106,35 +123,29 @@ async def handle_approval(request: ApproveRequest) -> dict:
 @app.get("/session_state")
 async def get_session_state() -> dict:
     """Get current session state including messages and pending requests."""
+    chat_session = session_manager.get_session(request.session_id)
     if chat_session is None:
-        raise HTTPException(status_code=503, detail="Service not initialized")
+        raise HTTPException(status_code=404, detail="Session not found")
 
     return chat_session.get_session_state()
 
 
 @app.post("/start_session")
 async def start_session(request: StartSession) -> dict:
-    chat_session.current_directory = request.current_directory
+    llm_client = _get_llm_client(request, config)
+
+    chat_session, session_id = await session_manager.create_session(
+        servers,
+        llm_client,
+        request.current_directory,
+    )
+
     os.chdir(request.current_directory)
 
-    if request.llm_provider is None or request.llm_provider == "ollama":
-        llm_client = OllamaClient(copy.deepcopy(config))
-        if request.provider_base_url:
-            llm_client.config.ollama_base_url = request.provider_base_url
-    elif request.llm_provider == "openai":
-        llm_client = OpenaiClient(copy.deepcopy(config))
-        if request.provider_base_url:
-            llm_client.config.openai_base_url = request.provider_base_url
-    if request.model:
-        llm_client.config.model = request.model
-    if request.api_key:
-        llm_client.config.api_key = request.api_key
-    llm_client.config.temperature = request.temperature
-    llm_client.config.context_size = request.context_size
-    llm_client.config.stream = request.stream
-
     await chat_session.init_system_message()
-    return dict()
+    return {
+        "session_id": session_id,
+    }
 
 
 if __name__ == "__main__":
