@@ -163,18 +163,39 @@ class Configuration:
             with open(file_path, "r") as f:
                 ret = json.load(f)
 
-        basic_agent = {
+        ret["mcpServers"]["basic-read-files-server"] = {
             "command": "uv",
             "args": [
                 "--directory",
                 f"{os.getcwd()}/basic-mcp-server",
                 "run",
-                "main.py",
+                "read_files.py",
             ],
             "disabled": False,
             "autoApprove": ["list_tools", "list_files", "read_file", ""],
         }
-        ret["mcpServers"]["basic-mcp-server"] = basic_agent
+        ret["mcpServers"]["basic-write-files-server"] = {
+            "command": "uv",
+            "args": [
+                "--directory",
+                f"{os.getcwd()}/basic-mcp-server",
+                "run",
+                "write_files.py",
+            ],
+            "disabled": False,
+            "autoApprove": ["list_tools", ""],
+        }
+        ret["mcpServers"]["basic-exec-cli-server"] = {
+            "command": "uv",
+            "args": [
+                "--directory",
+                f"{os.getcwd()}/basic-mcp-server",
+                "run",
+                "exec_cli.py",
+            ],
+            "disabled": False,
+            "autoApprove": ["list_tools", ""],
+        }
         return ret
 
     @property
