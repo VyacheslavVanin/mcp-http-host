@@ -199,10 +199,10 @@ class ChatSession:
                 )
 
             self._append_llm_response(content)
-            return LLMResponse(llm_response, end=True)
+            return LLMResponse(llm_response)
         except (json.JSONDecodeError, AttributeError):
             self._append_llm_response(content)
-            return LLMResponse(llm_response, end=True)
+            return LLMResponse(llm_response)
 
     def _llm_request_stream(self, messages) -> LLMStreamResponse:
         llm_response = ""

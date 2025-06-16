@@ -62,15 +62,18 @@ class OpenaiClient(LLMClientBase):
             "temperature": self.config.temperature,
             "top_p": self.config.top_p,
         }
+        if self.config.top_p:
+            payload["top_p"] = self.config.top_p
 
         try:
             with httpx.Client() as client:
                 response = client.post(url, json=payload, headers=headers, timeout=None)
                 response.raise_for_status()
                 data = response.json()
+                # support some strange providers
+                data = data.get("response") or data
 
-                model = data["model"]
-                created = iso8601_to_unixtimestamp(data["created"])
+                created = data["created"]
                 choice = data["choices"][0]
                 role = choice["message"]["role"]
                 content = choice["message"]["content"]
@@ -114,8 +117,9 @@ class OpenaiClient(LLMClientBase):
             "messages": messages,
             "stream": True,
             "temperature": self.config.temperature,
-            "top_p": self.config.top_p,
         }
+        if self.config.top_p:
+            payload["top_p"] = self.config.top_p
 
         try:
             with httpx.stream(
