@@ -51,6 +51,147 @@ class OpenaiClient(LLMClientBase):
         api_key = self.config.api_key
 
         _rate_limit(self.config.max_rps)
+        url = f"{base_url}/chat/completions"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+        }
+        payload = {
+            "model": model,
+            "messages": messages,
+            "temperature": self.config.temperature,
+            "top_p": self.config.top_p,
+        }
+
+        try:
+            with httpx.Client() as client:
+                response = client.post(url, json=payload, headers=headers, timeout=None)
+                response.raise_for_status()
+                data = response.json()
+
+                model = data["model"]
+                created = iso8601_to_unixtimestamp(data["created"])
+                choice = data["choices"][0]
+                role = choice["message"]["role"]
+                content = choice["message"]["content"]
+
+                return Response(role, content, model, created, end=True)
+        except httpx.RequestError as e:
+            error_message = f"Error getting OpenAI response: {str(e)}"
+            logging.error(error_message)
+
+            if isinstance(e, httpx.HTTPStatusError):
+                status_code = e.response.status_code
+                logging.error(f"Status code: {status_code}")
+                logging.error(f"Response details: {e.response.text}")
+
+            return Response(
+                "system",
+                f"I encountered an error: {error_message}. Please try again or rephrase your request.",
+                "",
+                int(time.time()),
+                end=True,
+            )
+
+    def get_response_stream(self, messages: list[dict[str, str]]) -> Response:
+        """Get a response from the local Ollama server.
+
+        Args:
+            messages: A list of message dictionaries.
+        """
+        base_url = self.config.openai_base_url
+        model = self.config.model
+        api_key = self.config.api_key
+
+        _rate_limit(self.config.max_rps)
+        url = f"{base_url}/chat/completions"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+        }
+        payload = {
+            "model": model,
+            "messages": messages,
+            "stream": True,
+            "temperature": self.config.temperature,
+            "top_p": self.config.top_p,
+        }
+
+        try:
+            with httpx.stream(
+                "POST", url, json=payload, headers=headers, timeout=None
+            ) as response:
+                ret: Response = Response(
+                    "assistant",
+                    "",
+                    model,
+                    time.time(),
+                    end=True,
+                )
+
+                def cb(obj):
+                    nonlocal ret
+                    choice = obj["choices"][0]
+                    message = choice["delta"]
+                    role = message.get("role", "assistant")
+                    content = message.get("content", "")
+                    created = obj["created"]
+                    end = choice["finish_reason"] != None
+                    ret = Response(
+                        role,
+                        content,
+                        model,
+                        created,
+                        end=end,
+                    )
+
+                jr = JsonReconstruct()
+                for chunk in response.iter_text():
+                    lines = chunk.split("\n")
+                    for line in lines:
+                        if jr.buffer == "" and not line.startswith("data: "):
+                            continue
+                        jr.process_part(chunk[6:], cb)
+                        if ret:
+                            yield ret
+                            ret = Response(
+                                "assistant",
+                                "",
+                                model,
+                                time.time(),
+                                end=True,
+                            )
+                jr.finalize(cb)
+                yield ret
+        except httpx.RequestError as e:
+            error_message = f"Error getting response: {str(e)}"
+            logging.error(error_message)
+
+            if isinstance(e, httpx.HTTPStatusError):
+                status_code = e.response.status_code
+                logging.error(f"Status code: {status_code}")
+                logging.error(f"Response details: {e.response.text}")
+
+            return f"I encountered an error: {error_message}. Please try again or rephrase your request."
+
+
+class OpenaiClientOfficial(LLMClientBase):
+    """Manages communication with the LLM provider."""
+
+    def __init__(self, config: Configuration = None) -> None:
+        super().__init__(config)
+
+    def get_response(self, messages: list[dict[str, str]]) -> Response:
+        """Get a response from the LLM.
+
+        Args:
+            messages: A list of message dictionaries.
+        """
+        base_url = self.config.openai_base_url
+        model = self.config.model
+        api_key = self.config.api_key
+
+        _rate_limit(self.config.max_rps)
         client = OpenAI(base_url=base_url, api_key=api_key, timeout=60)
         response = client.chat.completions.create(
             model=model,
