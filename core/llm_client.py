@@ -60,7 +60,6 @@ class OpenaiClient(LLMClientBase):
             "model": model,
             "messages": messages,
             "temperature": self.config.temperature,
-            "top_p": self.config.top_p,
         }
         if self.config.top_p:
             payload["top_p"] = self.config.top_p
