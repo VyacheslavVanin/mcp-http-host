@@ -44,7 +44,7 @@ class Configuration:
         self.top_p = float(args.top_p) if args.top_p else None
         self.stream: bool = bool(args.stream)
         self.max_rps: int = int(args.max_rps) if args.max_rps else 100
-        self.verify_ssl: bool = not bool(args.no_verify_ssl)
+        self.verify_ssl: bool = bool(args.verify_ssl)
 
     @staticmethod
     def parse_args():
@@ -110,11 +110,11 @@ class Configuration:
             default=100,
         )
         parser.add_argument(
-            "--no-verify-ssl",
-            help="Skip ssl verification on requests (e.g. for your self-signed certificates or when you sure it is safe to do so)",
-            type=bool,
+            "--verify-ssl",
+            help="Enable ssl verification on requests (disable only when you sure that it is safe to do so)",
             action=argparse.BooleanOptionalAction,
-            default=False,
+            type=bool,
+            default=True,
         )
         return parser.parse_args()
 
