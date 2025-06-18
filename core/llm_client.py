@@ -65,7 +65,7 @@ class OpenaiClient(LLMClientBase):
             payload["top_p"] = self.config.top_p
 
         try:
-            with httpx.Client() as client:
+            with httpx.Client(verify=self.config.verify_ssl) as client:
                 response = client.post(url, json=payload, headers=headers, timeout=None)
                 response.raise_for_status()
                 data = response.json()
