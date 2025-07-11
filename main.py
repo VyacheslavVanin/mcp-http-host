@@ -11,7 +11,7 @@ from core.configuration import Configuration
 from core.server import Server
 from core.chat_session import ChatSession
 from core.chat_session_manager import ChatSessionManager, ChatType
-from core.llm_client import OpenaiClient, OllamaClient, LLMClientBase
+from core.llm_client import OpenaiClient, OllamaClient, OpenaiClientOfficial, LLMClientBase
 
 # Configure logging
 logging.basicConfig(
@@ -66,7 +66,10 @@ def _get_llm_client(request, config) -> LLMClientBase:
         if request.provider_base_url:
             llm_client.config.ollama_base_url = request.provider_base_url
     elif request.llm_provider == "openai":
-        llm_client = OpenaiClient(copy.deepcopy(config))
+        if config.verify_ssl:
+            llm_client = OpenaiClientOfficial(copy.deepcopy(config))
+        else:
+            llm_client = OpenaiClient(copy.deepcopy(config))
         if request.provider_base_url:
             llm_client.config.openai_base_url = request.provider_base_url
     if request.model:
