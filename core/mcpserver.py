@@ -5,6 +5,7 @@ import shutil
 from contextlib import AsyncExitStack
 from typing import Any
 
+from core.configuration import Configuration
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from .tool import Tool
@@ -39,10 +40,9 @@ class Server:
             else None,
         )
         try:
-            stdio_transport = await self.exit_stack.enter_async_context(
+            read, write = await self.exit_stack.enter_async_context(
                 stdio_client(server_params)
             )
-            read, write = stdio_transport
             session = await self.exit_stack.enter_async_context(
                 ClientSession(read, write)
             )
@@ -129,3 +129,66 @@ class Server:
                 self.stdio_context = None
             except Exception as e:
                 logging.error(f"Error during cleanup of server {self.name}: {e}")
+
+
+# contains Servers
+class ToolBox:
+    def __init__(self, config: Configuration):
+        server_config = config.load_config(config.servers_config_path)
+        self.servers = [
+            Server(name, srv_config)
+            for name, srv_config in server_config["mcpServers"].items()
+        ]
+        self.tools: dict[str, list[Any]] = dict()
+        self.tools_description = ""
+        self.inited = False
+
+    async def initialize(self) -> bool:
+        """Initialize all servers in the toolbox.
+
+        Returns:
+            bool: True if all servers initialized successfully, False otherwise
+        """
+        if self.inited:
+            return True
+
+        try:
+            for server in self.servers:
+                await server.initialize()
+                self.tools[server.name] = await server.list_tools()
+        except Exception as e:
+            logging.error(f"Failed to initialize server: {e}")
+            await self.cleanup_servers()
+            return False
+        self.inited = True
+        return True
+
+    async def cleanup_servers(self) -> None:
+        """Clean up all servers properly."""
+        cleanup_tasks = []
+        for server in self.servers:
+            cleanup_tasks.append(asyncio.create_task(server.cleanup()))
+
+        if cleanup_tasks:
+            try:
+                await asyncio.gather(*cleanup_tasks, return_exceptions=True)
+            except Exception as e:
+                logging.warning(f"Warning during final cleanup: {e}")
+
+    async def execute_tool(self, tool_name, tool_args):
+        for server in self.servers:
+            tools = self.tools[server.name]
+            if any(tool.name == tool_name for tool in tools):
+                return await server.execute_tool(tool_name, tool_args)
+        return None
+
+    def get_tools_descriptions(self) -> str:
+        if not self.tools_description:
+            all_tools = []
+            for server in self.servers:
+                tools = self.tools[server.name]
+                all_tools.extend(tools)
+            self.tools_description = "\n".join(
+                [tool.format_for_llm() for tool in all_tools]
+            )
+        return self.tools_description

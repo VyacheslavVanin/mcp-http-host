@@ -1,6 +1,7 @@
 from core.chat_session import ChatSession
 from core.llm_client_base import LLMClientBase
-from core.server import Server
+from core.mcpserver import Server
+from core.configuration import Configuration
 import uuid
 from enum import Enum
 
@@ -92,7 +93,7 @@ class ChatSessionManager:
 
     async def create_session(
         self,
-        servers: list[Server],
+        config: Configuration,
         llm_client: LLMClientBase,
         current_directory: str,
         chat_type: ChatType = ChatType.AGENT,
@@ -100,7 +101,7 @@ class ChatSessionManager:
         session_id = str(uuid.uuid4())
         chat_session = ChatSession(
             current_directory,
-            servers,
+            config,
             llm_client,
             _get_system_prompt_template(chat_type),
         )

@@ -8,10 +8,15 @@ from pydantic import BaseModel
 
 from core.configuration import Configuration
 
-from core.server import Server
+from core.mcpserver import Server
 from core.chat_session import ChatSession
 from core.chat_session_manager import ChatSessionManager, ChatType
-from core.llm_client import OpenaiClient, OllamaClient, OpenaiClientOfficial, LLMClientBase
+from core.llm_client import (
+    OpenaiClient,
+    OllamaClient,
+    OpenaiClientOfficial,
+    LLMClientBase,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -57,7 +62,6 @@ class ApproveRequest(BaseModel):
 
 
 session_manager: ChatSessionManager = ChatSessionManager()
-servers: list[Server] = []
 
 
 def _get_llm_client(request, config) -> LLMClientBase:
@@ -85,13 +89,6 @@ def _get_llm_client(request, config) -> LLMClientBase:
 @app.on_event("startup")
 async def startup_event():
     """Initialize the chat session on startup."""
-    global session_manager
-    global servers
-    server_config = config.load_config(config.servers_config_path)
-    servers = [
-        Server(name, srv_config)
-        for name, srv_config in server_config["mcpServers"].items()
-    ]
 
 
 @app.post("/user_request")
@@ -141,7 +138,7 @@ async def start_session(request: StartSession) -> dict:
 
     chat_type = ChatType[request.chat_type.upper()]
     chat_session, session_id = await session_manager.create_session(
-        servers,
+        config,
         llm_client,
         request.current_directory,
         chat_type,

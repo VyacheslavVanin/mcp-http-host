@@ -52,6 +52,7 @@ python main.py --model qwen2.5-coder:latest --port 8000 --provider ollama
 - `POST /user_request` - Handle user chat requests
 - `POST /approve` - Handle tool approval/denial
 - `GET /session_state` - Get current session state
+- `POST /start_session` - Create new session
 
 ## Request/Response Format
 

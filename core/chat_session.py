@@ -7,8 +7,9 @@ import os
 from typing import Any
 from enum import Enum
 
-from .server import Server
+from .mcpserver import Server, ToolBox
 from .llm_client_base import LLMClientBase, Response
+from core.configuration import Configuration
 
 from fastapi.responses import StreamingResponse
 
@@ -59,57 +60,33 @@ def LLMStreamResponse(
     return json.dumps(ret) + "\n"
 
 
+tool_box = ToolBox(Configuration())
+
+
 class ChatSession:
     """Orchestrates the interaction between user, LLM, and tools."""
 
     def __init__(
         self,
         current_directory: str,
-        servers: list[Server],
+        config: Configuration,
         llm_client: LLMClientBase,
         system_prompt_template: str,
     ) -> None:
-        self.servers: list[Server] = servers
+        self.toolbox: ToolBox = tool_box
         self.llm_client: LLMClientBase = llm_client
         self.messages: list[dict[str, str]] = []
         self._pending_request_id: str | None = None
         self._pending_tool_call: dict | None = None
         self.current_directory: str = current_directory
-        self.tools: dict[str, list[Any]] = dict()
         self.system_prompt_template: str = system_prompt_template
 
     async def init_servers(self) -> bool:
-        """Initialize all servers.
-
-        Returns:
-            bool: True if all servers initialized successfully, False otherwise
-        """
-        try:
-            for server in self.servers:
-                try:
-                    await server.initialize()
-                    self.tools[server.name] = await server.list_tools()
-                except Exception as e:
-                    logging.error(f"Failed to initialize server: {e}")
-                    await self.cleanup_servers()
-                    return False
-            return True
-        except Exception as e:
-            logging.error(f"Error initializing servers: {e}")
-            await self.cleanup_servers()
-            return False
+        return await self.toolbox.initialize()
 
     async def cleanup_servers(self) -> None:
         """Clean up all servers properly."""
-        cleanup_tasks = []
-        for server in self.servers:
-            cleanup_tasks.append(asyncio.create_task(server.cleanup()))
-
-        if cleanup_tasks:
-            try:
-                await asyncio.gather(*cleanup_tasks, return_exceptions=True)
-            except Exception as e:
-                logging.warning(f"Warning during final cleanup: {e}")
+        await self.toolbox.cleanup_servers()
 
     def try_get_tool_call(self, text: str) -> str:
         # need to replace to kinda escape this tags to be able use tools
@@ -140,12 +117,8 @@ class ChatSession:
 
     async def init_system_message(self) -> None:
         """Initialize the system message with tool descriptions."""
-        all_tools = []
-        for server in self.servers:
-            tools = self.tools[server.name]
-            all_tools.extend(tools)
+        tools_description = self.toolbox.get_tools_descriptions()
 
-        tools_description = "\n".join([tool.format_for_llm() for tool in all_tools])
         system_prompt_content = self.system_prompt_template.format(
             current_directory=self.current_directory,
             tools_description=tools_description,
@@ -165,7 +138,7 @@ class ChatSession:
     async def init_session(self):
         try:
             if not await self.init_servers():
-                return
+                raise RuntimeError("Failed to initialize servers")
             await self.init_system_message()
             return True
         except Exception:
@@ -327,34 +300,31 @@ class ChatSession:
         try:
             tool_call = self._pending_tool_call
             tool_name = tool_call["tool"]
-            for server in self.servers:
-                tools = self.tools[server.name]
-                if any(tool.name == tool_name for tool in tools):
-                    result = await server.execute_tool(
-                        tool_call["tool"], tool_call["arguments"]
-                    )
+            args = tool_call["arguments"]
+            result = await self.toolbox.execute_tool(tool_name, args)
+            if result is None:
+                return LLMResponse(
+                    f"No server found with tool: {tool_name}",
+                    request_id=self._pending_request_id,
+                    tool_call=self._pending_tool_call,
+                )
 
-                    self._append_system_message(
-                        f"User approved {tool_name} tool execution. {tool_name} tool execution result:\n{result}"
-                    )
-
-                    self._pending_request_id = None
-                    self._pending_tool_call = None
-                    if self.llm_client.config.stream:
-
-                        def stream_generator():
-                            for r in self._llm_request_stream(self.messages):
-                                yield r
-
-                        return StreamingResponse(stream_generator())
-                    else:
-                        return await self._llm_request(self.messages)
-
-            return LLMResponse(
-                f"No server found with tool: {tool_call['tool']}",
-                request_id=self._pending_request_id,
-                tool_call=self._pending_tool_call,
+            self._append_system_message(
+                f"User approved {tool_name} tool execution. {tool_name} tool execution result:\n{result}"
             )
+
+            self._pending_request_id = None
+            self._pending_tool_call = None
+            if self.llm_client.config.stream:
+
+                def stream_generator():
+                    for r in self._llm_request_stream(self.messages):
+                        yield r
+
+                return StreamingResponse(stream_generator())
+            else:
+                return await self._llm_request(self.messages)
+
         except Exception as e:
             self._append_system_message(f"Tool execution failed with error {str(e)}")
             return LLMResponse(
@@ -410,4 +380,4 @@ class ChatSession:
                     break
 
         finally:
-            await self.cleanup_servers()
+            await self.toolbox.cleanup_servers()
