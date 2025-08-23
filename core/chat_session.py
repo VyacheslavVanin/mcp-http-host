@@ -21,10 +21,10 @@ class ChatContinuation(Enum):
 
 
 def LLMResponse(
-    orig_response: Response | str, request_id: str = None, tool_call=None
+    orig_response: Response | str, request_id: str = None, tool_calls=[]
 ) -> dict:
-    tool = None
-    if tool_call:
+    tools = []
+    for tool_call in tool_calls:
         tool = dict()
         tool["name"] = tool_call["tool"]
         arguments = tool_call.get("arguments")
@@ -32,11 +32,12 @@ def LLMResponse(
             tool["arguments"] = dict()
             for k, v in arguments.items():
                 tool["arguments"][k] = f"{v}"
+        tools.append(tool)
 
     ret = dict()
     ret["request_id"] = request_id
     ret["requires_approval"] = request_id is not None
-    ret["tool"] = tool
+    ret["tools"] = tools
 
     if isinstance(orig_response, Response):
         ret["message"] = orig_response.content
@@ -52,10 +53,10 @@ def LLMResponse(
 def LLMStreamResponse(
     orig_response: Response,
     request_id: str = None,
-    tool_call=None,
+    tool_calls=[],
     end=False,
 ) -> str:
-    ret = LLMResponse(orig_response, request_id, tool_call)
+    ret = LLMResponse(orig_response, request_id, tool_calls)
     ret["done"] = end
     return json.dumps(ret) + "\n"
 
@@ -168,7 +169,7 @@ class ChatSession:
                 return LLMResponse(
                     llm_response,
                     request_id=request_id,
-                    tool_call=tool_call,
+                    tool_calls=[tool_call],
                 )
 
             self._append_llm_response(content)
@@ -192,7 +193,7 @@ class ChatSession:
                 yield LLMStreamResponse(
                     f"\napprove required {tool_call['tool']}\n",
                     request_id=request_id,
-                    tool_call=tool_call,
+                    tool_calls=[tool_call],
                     end=True,
                 )
                 return
@@ -218,7 +219,7 @@ class ChatSession:
             return LLMResponse(
                 "approve required ",
                 request_id=self._pending_request_id,
-                tool_call=self._pending_tool_call,
+                tool_calls=[self._pending_tool_call],
             )
 
         continuation, user_input = await self._process_user_input(user_input)
@@ -288,7 +289,7 @@ class ChatSession:
             return LLMResponse(
                 "Invalid or expired request ID",
                 request_id=self._pending_request_id,
-                tool_call=self._pending_tool_call,
+                tool_calls=[self._pending_tool_call],
             )
 
         if not approve:
@@ -306,7 +307,7 @@ class ChatSession:
                 return LLMResponse(
                     f"No server found with tool: {tool_name}",
                     request_id=self._pending_request_id,
-                    tool_call=self._pending_tool_call,
+                    tool_calls=[self._pending_tool_call],
                 )
 
             self._append_system_message(
@@ -330,7 +331,7 @@ class ChatSession:
             return LLMResponse(
                 f"Error executing tool: {str(e)}",
                 request_id=self._pending_request_id,
-                tool_call=self._pending_tool_call,
+                tool_calls=[self._pending_tool_call],
             )
         finally:
             self._pending_request_id = None
