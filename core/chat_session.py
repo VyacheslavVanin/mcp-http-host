@@ -82,6 +82,15 @@ class ChatSession:
         self.current_directory: str = current_directory
         self.system_prompt_template: str = system_prompt_template
 
+    def get_pending_tool_calls(self) -> list[dict]:
+        if self._pending_tool_call is not None:
+            return [self._pending_tool_call]
+        return []
+
+    def clear_pending_calls(self):
+        self._pending_request_id = None
+        self._pending_tool_call = None
+
     async def init_servers(self) -> bool:
         return await self.toolbox.initialize()
 
@@ -133,8 +142,7 @@ class ChatSession:
                 "content": system_prompt_content,
             }
         ]
-        self._pending_request_id = None
-        self._pending_tool_call = None
+        self.clear_pending_calls()
 
     async def init_session(self):
         try:
@@ -166,10 +174,13 @@ class ChatSession:
                 request_id = str(uuid.uuid4())
                 self._pending_request_id = request_id
                 self._pending_tool_call = tool_call
+                logging.info(
+                    f"Request user confirmation for {tool_call['tool']} {request_id=}"
+                )
                 return LLMResponse(
                     llm_response,
                     request_id=request_id,
-                    tool_calls=[tool_call],
+                    tool_calls=self.get_pending_tool_calls(),
                 )
 
             self._append_llm_response(content)
@@ -193,7 +204,7 @@ class ChatSession:
                 yield LLMStreamResponse(
                     f"\napprove required {tool_call['tool']}\n",
                     request_id=request_id,
-                    tool_calls=[tool_call],
+                    tool_calls=self.get_pending_tool_calls(),
                     end=True,
                 )
                 return
@@ -219,7 +230,7 @@ class ChatSession:
             return LLMResponse(
                 "approve required ",
                 request_id=self._pending_request_id,
-                tool_calls=[self._pending_tool_call],
+                tool_calls=self.get_pending_tool_calls(),
             )
 
         continuation, user_input = await self._process_user_input(user_input)
@@ -286,15 +297,17 @@ class ChatSession:
             or self._pending_request_id != request_id
             or self._pending_tool_call is None
         ):
+            logging.warning(
+                f"Tool approval request not found or expired. {request_id=} {self._pending_request_id=}"
+            )
             return LLMResponse(
                 "Invalid or expired request ID",
                 request_id=self._pending_request_id,
-                tool_calls=[self._pending_tool_call],
+                tool_calls=self.get_pending_tool_calls(),
             )
 
         if not approve:
-            self._pending_request_id = None
-            self._pending_tool_call = None
+            self.clear_pending_calls()
             self._append_system_message(f"User denied tool execution")
             return LLMResponse("Tool execution denied")
 
@@ -305,17 +318,16 @@ class ChatSession:
             result = await self.toolbox.execute_tool(tool_name, args)
             if result is None:
                 return LLMResponse(
-                    f"No server found with tool: {tool_name}",
+                    f"No server found with tool: ",
                     request_id=self._pending_request_id,
-                    tool_calls=[self._pending_tool_call],
+                    tool_calls=self.get_pending_tool_calls(),
                 )
 
             self._append_system_message(
                 f"User approved {tool_name} tool execution. {tool_name} tool execution result:\n{result}"
             )
 
-            self._pending_request_id = None
-            self._pending_tool_call = None
+            self.clear_pending_calls()
             if self.llm_client.config.stream:
 
                 def stream_generator():
@@ -331,11 +343,8 @@ class ChatSession:
             return LLMResponse(
                 f"Error executing tool: {str(e)}",
                 request_id=self._pending_request_id,
-                tool_calls=[self._pending_tool_call],
+                tool_calls=self.get_pending_tool_calls(),
             )
-        finally:
-            self._pending_request_id = None
-            self._pending_tool_call = None
 
     def get_session_state(self) -> dict:
         """Get current session state including messages and pending requests.
