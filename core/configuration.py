@@ -45,6 +45,7 @@ class Configuration:
         self.stream: bool = bool(args.stream)
         self.max_rps: int = int(args.max_rps) if args.max_rps else 100
         self.verify_ssl: bool = bool(args.verify_ssl)
+        self.timeout: float = float(args.timeout) if args.timeout else None
 
     @staticmethod
     def parse_args():
@@ -115,6 +116,11 @@ class Configuration:
             action=argparse.BooleanOptionalAction,
             type=bool,
             default=True,
+        )
+        parser.add_argument(
+            "--timeout",
+            help="Set request timeout in seconds (float). None or 0 - no timeout",
+            default=None,
         )
         return parser.parse_args()
 

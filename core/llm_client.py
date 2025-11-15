@@ -66,7 +66,9 @@ class OpenaiClient(LLMClientBase):
 
         try:
             with httpx.Client(verify=self.config.verify_ssl) as client:
-                response = client.post(url, json=payload, headers=headers, timeout=None)
+                response = client.post(
+                    url, json=payload, headers=headers, timeout=self.config.timeout
+                )
                 response.raise_for_status()
                 data = response.json()
                 # support some strange providers
@@ -122,7 +124,11 @@ class OpenaiClient(LLMClientBase):
 
         try:
             with httpx.stream(
-                "POST", url, json=payload, headers=headers, timeout=None
+                "POST",
+                url,
+                json=payload,
+                headers=headers,
+                timeout=self.config.timeout,
             ) as response:
                 ret: Response = Response(
                     "assistant",
@@ -195,7 +201,11 @@ class OpenaiClientOfficial(LLMClientBase):
         api_key = self.config.api_key
 
         _rate_limit(self.config.max_rps)
-        client = OpenAI(base_url=base_url, api_key=api_key, timeout=60)
+        client = OpenAI(
+            base_url=base_url,
+            api_key=api_key,
+            timeout=self.config.timeout,
+        )
         response = client.chat.completions.create(
             model=model,
             messages=messages,
@@ -222,7 +232,7 @@ class OpenaiClientOfficial(LLMClientBase):
         api_key = self.config.api_key
 
         _rate_limit(self.config.max_rps)
-        client = OpenAI(base_url=base_url, api_key=api_key, timeout=60)
+        client = OpenAI(base_url=base_url, api_key=api_key, timeout=self.config.timeout)
         response = client.chat.completions.create(
             model=model,
             messages=messages,
@@ -283,7 +293,7 @@ class OllamaClient(LLMClientBase):
         _rate_limit(self.config.max_rps)
         try:
             with httpx.Client() as client:
-                response = client.post(url, json=payload, timeout=None)
+                response = client.post(url, json=payload, timeout=self.config.timeout)
                 response.raise_for_status()
                 data = response.json()
                 role = data["message"]["role"]
@@ -331,7 +341,9 @@ class OllamaClient(LLMClientBase):
 
         _rate_limit(self.config.max_rps)
         try:
-            with httpx.stream("POST", url, json=payload, timeout=None) as response:
+            with httpx.stream(
+                "POST", url, json=payload, timeout=self.config.timeout
+            ) as response:
                 ret: Response = Response(
                     "assistant",
                     "",
