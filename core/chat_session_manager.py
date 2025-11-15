@@ -4,11 +4,7 @@ from core.mcpserver import Server
 from core.configuration import Configuration
 import uuid
 from enum import Enum
-
-
-class ChatType(Enum):
-    CHAT = 0  # Simple chat
-    AGENT = 1  # Chat with access to mcp-tools
+from .chat_type import ChatType
 
 
 def _create_system_prompt_template_chat() -> str:
@@ -104,6 +100,7 @@ class ChatSessionManager:
             config,
             llm_client,
             _get_system_prompt_template(chat_type),
+            chat_type,
         )
         if not await chat_session.init_session():
             raise RuntimeError("Failed to initialize chat session")

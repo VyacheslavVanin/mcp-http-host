@@ -12,6 +12,7 @@ from .llm_client_base import LLMClientBase, Response
 from core.configuration import Configuration
 
 from fastapi.responses import StreamingResponse
+from .chat_type import ChatType
 
 
 class ChatContinuation(Enum):
@@ -73,6 +74,7 @@ class ChatSession:
         config: Configuration,
         llm_client: LLMClientBase,
         system_prompt_template: str,
+        chat_type: ChatType,
     ) -> None:
         self.toolbox: ToolBox = tool_box
         self.llm_client: LLMClientBase = llm_client
@@ -81,6 +83,7 @@ class ChatSession:
         self._pending_tool_call: dict | None = None
         self.current_directory: str = current_directory
         self.system_prompt_template: str = system_prompt_template
+        self.chat_type = chat_type
 
     def get_pending_tool_calls(self) -> list[dict]:
         if self._pending_tool_call is not None:
@@ -125,6 +128,21 @@ class ChatSession:
     def _append_user_message(self, message):
         self.messages.append({"role": "user", "content": message})
 
+    def add_rulesmd_to_context(self) -> None:
+        """
+        Reads file rules.md from current directory and adds its content as system message.
+        It can be rules.md, RULES.md or Rules.md.
+        """
+        for name in ["rules.md", "RULES.md", "Rules.md"]:
+            rules_file_path = os.path.join(self.current_directory, name)
+            if os.path.exists(rules_file_path):
+                with open(rules_file_path, "r", encoding="utf-8") as f:
+                    rules_content = f.read()
+                    self._append_system_message(
+                        f"Rules from rules.md:\n{rules_content}\n"
+                    )
+                    break
+
     async def init_system_message(self) -> None:
         """Initialize the system message with tool descriptions."""
         tools_description = self.toolbox.get_tools_descriptions()
@@ -142,6 +160,8 @@ class ChatSession:
                 "content": system_prompt_content,
             }
         ]
+        if self.chat_type == ChatType.AGENT:
+            self.add_rulesmd_to_context()
         self.clear_pending_calls()
 
     async def init_session(self):
