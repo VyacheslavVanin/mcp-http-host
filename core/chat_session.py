@@ -45,6 +45,7 @@ def LLMResponse(
         ret["model"] = orig_response.model
         ret["created_timestamp"] = orig_response.created_timestamp
         ret["role"] = orig_response.role
+        ret["usage"] = orig_response.usage
     else:
         ret["message"] = orig_response
 

@@ -1,4 +1,5 @@
 from core.configuration import Configuration
+from typing import Dict
 
 
 class Response:
@@ -9,21 +10,26 @@ class Response:
         model: str,
         created_timestamp: int,
         end: bool = False,
+        usage: Dict[str, int] = None,
     ):
         self.content: str = content
         self.role: str = role
         self.model: str = model
         self.created_timestamp: int = created_timestamp
         self.done: bool = end
+        self.usage: Dict[str, int] = usage
 
     def to_dict(self):
-        return {
+        ret = {
             "content": self.content,
             "role": self.role,
             "model": self.model,
             "created_timestamp": self.created_timestamp,
             "done": self.done,
         }
+        if self.total_tokens is not None:
+            ret.update({"usage": self.usage})
+        return ret
 
 
 class LLMClientBase:

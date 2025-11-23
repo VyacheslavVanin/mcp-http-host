@@ -34,6 +34,32 @@ def _rate_limit(rps: int):
     time.sleep(delay)
 
 
+def _get_openai_usage(data):
+    resp_usage = data.get("usage")
+    return (
+        {
+            "total_tokens": resp_usage.get("total_tokens", 0),
+            "input": resp_usage.get("prompt_tokens", 0),
+            "output": resp_usage.get("completion_tokens", 0),
+        }
+        if resp_usage
+        else None
+    )
+
+
+def _get_openai_usage_official(data):
+    resp_usage = data.usage
+    return (
+        {
+            "total_tokens": resp_usage.total_tokens,
+            "input": resp_usage.prompt_tokens,
+            "output": resp_usage.completion_tokens,
+        }
+        if resp_usage
+        else None
+    )
+
+
 class OpenaiClient(LLMClientBase):
     """Manages communication with the LLM provider."""
 
@@ -78,8 +104,8 @@ class OpenaiClient(LLMClientBase):
                 choice = data["choices"][0]
                 role = choice["message"]["role"]
                 content = choice["message"]["content"]
-
-                return Response(role, content, model, created, end=True)
+                usage = _get_openai_usage(data)
+                return Response(role, content, model, created, end=True, usage=usage)
         except httpx.RequestError as e:
             error_message = f"Error getting OpenAI response: {str(e)}"
             logging.error(error_message)
@@ -118,6 +144,7 @@ class OpenaiClient(LLMClientBase):
             "messages": messages,
             "stream": True,
             "temperature": self.config.temperature,
+            "stream_options": {"include_usage": True},
         }
         if self.config.top_p:
             payload["top_p"] = self.config.top_p
@@ -140,6 +167,20 @@ class OpenaiClient(LLMClientBase):
 
                 def cb(obj):
                     nonlocal ret
+                    choices = obj.get("choices")
+                    logging.error(obj)
+                    if not choices:
+                        usage = _get_openai_usage(obj)
+                        if usage:
+                            ret = Response(
+                                "assistant",
+                                "",
+                                model,
+                                time.time(),
+                                end=False,
+                                usage=usage,
+                            )
+                        return
                     choice = obj["choices"][0]
                     message = choice["delta"]
                     role = message.get("role", "assistant")
@@ -155,21 +196,28 @@ class OpenaiClient(LLMClientBase):
                     )
 
                 jr = JsonReconstruct()
+                is_done = False
                 for chunk in response.iter_text():
                     lines = chunk.split("\n")
                     for line in lines:
                         if jr.buffer == "" and not line.startswith("data: "):
                             continue
-                        jr.process_part(chunk[6:], cb)
+                        is_done = line == "data: [DONE]"
+                        if is_done:
+                            break
+                        logging.error(line)
+                        jr.process_part(line[6:], cb)
                         if ret:
                             yield ret
-                            ret = Response(
-                                "assistant",
-                                "",
-                                model,
-                                time.time(),
-                                end=True,
-                            )
+                    if is_done:
+                        ret = Response(
+                            "assistant",
+                            "",
+                            model,
+                            time.time(),
+                            end=True,
+                        )
+                        break
                 jr.finalize(cb)
                 yield ret
         except httpx.RequestError as e:
@@ -219,7 +267,8 @@ class OpenaiClientOfficial(LLMClientBase):
         choice = response.choices[0]
         role = choice.message.role
         content = choice.message.content
-        return Response(role, content, model, created, end=True)
+        usage = _get_openai_usage_official(response)
+        return Response(role, content, model, created, end=True, usage=usage)
 
     def get_response_stream(self, messages: list[dict[str, str]]) -> Response:
         """Get a response from the local Ollama server.
@@ -239,8 +288,20 @@ class OpenaiClientOfficial(LLMClientBase):
             stream=True,
             temperature=self.config.temperature,
             top_p=self.config.top_p,
+            stream_options={"include_usage": True},
         )
         for chunk in response:
+            if not chunk.choices:
+                usage = _get_openai_usage_official(chunk)
+                yield Response(
+                    "assistant",
+                    "",
+                    "",
+                    int(time.time()),
+                    end=False,
+                    usage=usage,
+                )
+                continue
             role = chunk.choices[0].delta.role
             content = chunk.choices[0].delta.content
             created = chunk.created
