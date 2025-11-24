@@ -213,8 +213,9 @@ class ChatSession:
     def _llm_request_stream(self, messages) -> LLMStreamResponse:
         llm_response = ""
         for part in self.llm_client.get_response_stream(messages):
-            yield LLMStreamResponse(part)
-            llm_response += part.content
+            if part and part.content is not None:
+                yield LLMStreamResponse(part)
+                llm_response += part.content
         self._append_llm_response(llm_response)
         try:
             tool_call = self.try_get_tool_call(llm_response)

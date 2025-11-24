@@ -156,6 +156,7 @@ class OpenaiClient(LLMClientBase):
                 json=payload,
                 headers=headers,
                 timeout=self.config.timeout,
+                verify=self.config.verify_ssl,
             ) as response:
                 ret: Response = Response(
                     "assistant",
@@ -168,7 +169,6 @@ class OpenaiClient(LLMClientBase):
                 def cb(obj):
                     nonlocal ret
                     choices = obj.get("choices")
-                    logging.error(obj)
                     if not choices:
                         usage = _get_openai_usage(obj)
                         if usage:
@@ -184,7 +184,10 @@ class OpenaiClient(LLMClientBase):
                     choice = obj["choices"][0]
                     message = choice["delta"]
                     role = message.get("role", "assistant")
-                    content = message.get("content", "")
+                    content = message.get("content")
+                    if content is none:
+                        ret = None
+                        return
                     created = obj["created"]
                     end = choice["finish_reason"] != None
                     ret = Response(
@@ -205,7 +208,6 @@ class OpenaiClient(LLMClientBase):
                         is_done = line == "data: [DONE]"
                         if is_done:
                             break
-                        logging.error(line)
                         jr.process_part(line[6:], cb)
                         if ret:
                             yield ret
