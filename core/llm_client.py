@@ -185,7 +185,7 @@ class OpenaiClient(LLMClientBase):
                     message = choice["delta"]
                     role = message.get("role", "assistant")
                     content = message.get("content")
-                    if content is none:
+                    if content is None:
                         ret = None
                         return
                     created = obj["created"]
