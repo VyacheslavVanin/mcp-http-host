@@ -60,6 +60,17 @@ def _get_openai_usage_official(data):
     )
 
 
+def _get_ollama_usage(data):
+    input_tokens = data.get("prompt_eval_count", 0)
+    output_tokens = data.get("eval_count", 0)
+    total_tokens = input_tokens + output_tokens
+    return {
+        "total_tokens": total_tokens,
+        "input": input_tokens,
+        "output": output_tokens,
+    }
+
+
 class OpenaiClient(LLMClientBase):
     """Manages communication with the LLM provider."""
 
@@ -363,7 +374,8 @@ class OllamaClient(LLMClientBase):
                 content = data["message"]["content"]
                 model = data["model"]
                 created = iso8601_to_unixtimestamp(data["created_at"])
-                return Response(role, content, model, created, end=True)
+                usage = _get_ollama_usage(data)
+                return Response(role, content, model, created, end=True, usage=usage)
         except httpx.RequestError as e:
             error_message = f"Error getting Ollama response: {str(e)}"
             logging.error(error_message)
@@ -417,12 +429,14 @@ class OllamaClient(LLMClientBase):
 
                 def cb(obj):
                     nonlocal ret
+                    usage = _get_ollama_usage(obj)
                     ret = Response(
                         obj["message"]["role"],
                         obj["message"]["content"],
                         obj["model"],
                         iso8601_to_unixtimestamp(obj["created_at"]),
                         end=obj["done"],
+                        usage=usage,
                     )
 
                 jr = JsonReconstruct()
