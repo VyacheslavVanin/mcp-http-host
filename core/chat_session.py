@@ -188,7 +188,6 @@ class ChatSession:
     async def _llm_request(self, messages) -> dict:
         llm_response = self.llm_client.get_response(messages)
         content = llm_response.content
-        self._append_llm_response(content)
         try:
             tool_call = self.try_get_tool_call(content)
             if "tool" in tool_call and "arguments" in tool_call:
@@ -198,6 +197,7 @@ class ChatSession:
                 logging.info(
                     f"Request user confirmation for {tool_call['tool']} {request_id=}"
                 )
+                self._append_llm_response(content)
                 return LLMResponse(
                     llm_response,
                     request_id=request_id,
