@@ -13,7 +13,6 @@ from core.chat_session import ChatSession
 from core.chat_session_manager import ChatSessionManager, ChatType
 from core.llm_client import (
     OpenaiClient,
-    OllamaClient,
     OpenaiClientOfficial,
     LLMClientBase,
 )
@@ -37,10 +36,9 @@ app.add_middleware(
 
 class StartSession(BaseModel):
     current_directory: str
-    # ollama or openai
-    llm_provider: str = "ollama"
+    llm_provider: str = "openai"
     model: str
-    provider_base_url: str = "http://localhost:11434"
+    provider_base_url: str = "http://localhost:11434/v1"
     api_key: str = ""
     temperature: float = 0.2
     context_size: int = 2048
@@ -65,17 +63,12 @@ session_manager: ChatSessionManager = ChatSessionManager()
 
 
 def _get_llm_client(request, config) -> LLMClientBase:
-    if request.llm_provider is None or request.llm_provider == "ollama":
-        llm_client = OllamaClient(copy.deepcopy(config))
-        if request.provider_base_url:
-            llm_client.config.ollama_base_url = request.provider_base_url
-    elif request.llm_provider == "openai":
-        if config.verify_ssl:
-            llm_client = OpenaiClientOfficial(copy.deepcopy(config))
-        else:
-            llm_client = OpenaiClient(copy.deepcopy(config))
-        if request.provider_base_url:
-            llm_client.config.openai_base_url = request.provider_base_url
+    if config.verify_ssl:
+        llm_client = OpenaiClientOfficial(copy.deepcopy(config))
+    else:
+        llm_client = OpenaiClient(copy.deepcopy(config))
+    if request.provider_base_url:
+        llm_client.config.openai_base_url = request.provider_base_url
     if request.model:
         llm_client.config.model = request.model
     if request.api_key:

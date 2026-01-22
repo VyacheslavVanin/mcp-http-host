@@ -24,17 +24,12 @@ class Configuration:
         self.llm_provider = (
             args.provider.lower()
             if args.provider
-            else os.getenv("LLM_PROVIDER", "ollama").lower()
+            else os.getenv("LLM_PROVIDER", "openai").lower()
         )
         self.openai_base_url = (
             args.openai_base_url
             if args.openai_base_url
             else os.getenv("OPENAI_BASE_URL", "https://openrouter.ai/api/v1")
-        )
-        self.ollama_base_url = (
-            args.ollama_base_url
-            if args.ollama_base_url
-            else os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
         )
         self.current_directory = args.current_directory
         self.servers_config_path = args.servers_config
@@ -57,15 +52,12 @@ class Configuration:
         )
         parser.add_argument(
             "--provider",
-            help="LLM provider (ollama/openai)",
-            choices=["ollama", "openai"],
+            help="LLM provider (openai)",
+            choices=["openai"],
             default=None,
         )
         parser.add_argument(
             "--openai-base-url", help="Base URL for OpenAI-compatible API", default=None
-        )
-        parser.add_argument(
-            "--ollama-base-url", help="Base URL for Ollama-compatible API", default=None
         )
         parser.add_argument(
             "--servers-config",
@@ -147,14 +139,6 @@ class Configuration:
         """
         return self.port
 
-    @property
-    def use_ollama(self) -> bool:
-        """Check if Ollama should be used as the LLM provider.
-
-        Returns:
-            True if Ollama should be used, False for openai.
-        """
-        return self.llm_provider == "ollama"
 
     @staticmethod
     def load_config(file_path: str) -> dict[str, Any]:

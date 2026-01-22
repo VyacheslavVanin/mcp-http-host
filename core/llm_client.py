@@ -60,17 +60,6 @@ def _get_openai_usage_official(data):
     )
 
 
-def _get_ollama_usage(data):
-    input_tokens = data.get("prompt_eval_count", 0)
-    output_tokens = data.get("eval_count", 0)
-    total_tokens = input_tokens + output_tokens
-    return {
-        "total_tokens": total_tokens,
-        "input": input_tokens,
-        "output": output_tokens,
-    }
-
-
 class OpenaiClient(LLMClientBase):
     """Manages communication with the LLM provider."""
 
@@ -135,7 +124,7 @@ class OpenaiClient(LLMClientBase):
             )
 
     def get_response_stream(self, messages: list[dict[str, str]]) -> Response:
-        """Get a response from the local Ollama server.
+        """Get a response from the LLM provider.
 
         Args:
             messages: A list of message dictionaries.
@@ -284,7 +273,7 @@ class OpenaiClientOfficial(LLMClientBase):
         return Response(role, content, model, created, end=True, usage=usage)
 
     def get_response_stream(self, messages: list[dict[str, str]]) -> Response:
-        """Get a response from the local Ollama server.
+        """Get a response from the LLM provider.
 
         Args:
             messages: A list of message dictionaries.
@@ -328,141 +317,3 @@ class OpenaiClientOfficial(LLMClientBase):
             )
 
 
-class OllamaClient(LLMClientBase):
-    """Manages communication with a local Ollama server."""
-
-    def __init__(self, config: Configuration = None) -> None:
-        super().__init__(config)
-
-    def get_response(self, messages: list[dict[str, str]]) -> str:
-        """Get a response from the local Ollama server.
-
-        Args:
-            messages: A list of message dictionaries.
-
-        Returns:
-            The LLM's response as a string.
-
-        Raises:
-            httpx.RequestError: If the request to Ollama fails.
-        """
-        url = self.config.ollama_base_url + "/api/chat"
-        model = self.config.model
-
-        payload = {
-            "model": model,
-            "messages": messages,
-            "stream": False,
-            "options": dict(),
-        }
-        if self.config.temperature:
-            payload["options"]["temperature"] = self.config.temperature
-        if self.config.top_p:
-            payload["options"]["top_p"] = self.config.top_p
-        if self.config.top_k:
-            payload["options"]["top_k"] = self.config.top_k
-        if self.config.context_size:
-            payload["options"]["num_ctx"] = self.config.context_size
-
-        _rate_limit(self.config.max_rps)
-        try:
-            with httpx.Client() as client:
-                response = client.post(url, json=payload, timeout=self.config.timeout)
-                response.raise_for_status()
-                data = response.json()
-                role = data["message"]["role"]
-                content = data["message"]["content"]
-                model = data["model"]
-                created = iso8601_to_unixtimestamp(data["created_at"])
-                usage = _get_ollama_usage(data)
-                return Response(role, content, model, created, end=True, usage=usage)
-        except httpx.RequestError as e:
-            error_message = f"Error getting Ollama response: {str(e)}"
-            logging.error(error_message)
-
-            if isinstance(e, httpx.HTTPStatusError):
-                status_code = e.response.status_code
-                logging.error(f"Status code: {status_code}")
-                logging.error(f"Response details: {e.response.text}")
-
-            return Response(
-                "system",
-                f"I encountered an error: {error_message}. "
-                "Please try again or rephrase your request.",
-                "",
-                int(time.time()),
-                end=True,
-            )
-
-    def get_response_stream(self, messages: list[dict[str, str]]) -> Response:
-        """Get a response from the local Ollama server.
-
-        Args:
-            messages: A list of message dictionaries.
-        """
-        url = self.config.ollama_base_url + "/api/chat"
-        model = self.config.model
-
-        payload = {
-            "model": model,
-            "messages": messages,
-            "stream": True,
-            "options": dict(),
-        }
-        if self.config.temperature:
-            payload["options"]["temperature"] = self.config.temperature
-        if self.config.context_size:
-            payload["options"]["num_ctx"] = self.config.context_size
-
-        _rate_limit(self.config.max_rps)
-        try:
-            with httpx.stream(
-                "POST", url, json=payload, timeout=self.config.timeout
-            ) as response:
-                ret: Response = Response(
-                    "assistant",
-                    "",
-                    model,
-                    time.time(),
-                    end=True,
-                )
-
-                def cb(obj):
-                    nonlocal ret
-                    usage = _get_ollama_usage(obj)
-                    ret = Response(
-                        obj["message"]["role"],
-                        obj["message"]["content"],
-                        obj["model"],
-                        iso8601_to_unixtimestamp(obj["created_at"]),
-                        end=obj["done"],
-                        usage=usage,
-                    )
-
-                jr = JsonReconstruct()
-                for chunk in response.iter_text():
-                    jr.process_part(chunk, cb)
-                    if ret:
-                        yield ret
-                        ret = Response(
-                            "assistant",
-                            "",
-                            model,
-                            time.time(),
-                            end=True,
-                        )
-                jr.finalize(cb)
-                yield ret
-        except httpx.RequestError as e:
-            error_message = f"Error getting response: {str(e)}"
-            logging.error(error_message)
-
-            if isinstance(e, httpx.HTTPStatusError):
-                status_code = e.response.status_code
-                logging.error(f"Status code: {status_code}")
-                logging.error(f"Response details: {e.response.text}")
-
-            return (
-                f"I encountered an error: {error_message}. "
-                "Please try again or rephrase your request."
-            )
