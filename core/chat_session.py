@@ -21,7 +21,7 @@ class ChatContinuation(Enum):
     EXIT = 2  # User requested exit application
 
 
-def LLMResponse(
+def make_response(
     orig_response: Response | str, request_id: str = None, tool_calls=[]
 ) -> dict:
     tools = []
@@ -58,7 +58,7 @@ def LLMStreamResponse(
     tool_calls=[],
     end=False,
 ) -> str:
-    ret = LLMResponse(orig_response, request_id, tool_calls)
+    ret = make_response(orig_response, request_id, tool_calls)
     ret["done"] = end
     return json.dumps(ret) + "\n"
 
@@ -198,17 +198,17 @@ class ChatSession:
                     f"Request user confirmation for {tool_call['name']} {request_id=}"
                 )
                 self._append_llm_response(content)
-                return LLMResponse(
+                return make_response(
                     llm_response,
                     request_id=request_id,
                     tool_calls=self.get_pending_tool_calls(),
                 )
 
             self._append_llm_response(content)
-            return LLMResponse(llm_response)
+            return make_response(llm_response)
         except (json.JSONDecodeError, AttributeError):
             self._append_llm_response(content)
-            return LLMResponse(llm_response)
+            return make_response(llm_response)
 
     def _llm_request_stream(self, messages) -> LLMStreamResponse:
         llm_response = ""
@@ -249,7 +249,7 @@ class ChatSession:
             None: If request is ok
         """
         if self._pending_request_id is not None:
-            return LLMResponse(
+            return make_response(
                 "approve required ",
                 request_id=self._pending_request_id,
                 tool_calls=self.get_pending_tool_calls(),
@@ -258,7 +258,7 @@ class ChatSession:
         continuation, user_input = await self._process_user_input(user_input)
         if continuation in [ChatContinuation.EXIT, ChatContinuation.RESET_CHAT]:
             await self.init_system_message()
-            return LLMResponse("Session was reseted")
+            return make_response("Session was reseted")
         return None
 
     async def user_request(
@@ -322,7 +322,7 @@ class ChatSession:
             logging.warning(
                 f"Tool approval request not found or expired. {request_id=} {self._pending_request_id=}"
             )
-            return LLMResponse(
+            return make_response(
                 "Invalid or expired request ID",
                 request_id=self._pending_request_id,
                 tool_calls=self.get_pending_tool_calls(),
@@ -331,7 +331,7 @@ class ChatSession:
         if not approve:
             self.clear_pending_calls()
             self._append_system_message(f"User denied tool execution")
-            return LLMResponse("Tool execution denied")
+            return make_response("Tool execution denied")
 
         try:
             tool_call = self._pending_tool_call
@@ -339,7 +339,7 @@ class ChatSession:
             args = tool_call["arguments"]
             result = await self.toolbox.execute_tool(tool_name, args)
             if result is None:
-                return LLMResponse(
+                return make_response(
                     f"No server found with tool: ",
                     request_id=self._pending_request_id,
                     tool_calls=self.get_pending_tool_calls(),
@@ -362,7 +362,7 @@ class ChatSession:
 
         except Exception as e:
             self._append_system_message(f"Tool execution failed with error {str(e)}")
-            return LLMResponse(
+            return make_response(
                 f"Error executing tool: {str(e)}",
                 request_id=self._pending_request_id,
                 tool_calls=self.get_pending_tool_calls(),
