@@ -27,7 +27,7 @@ def LLMResponse(
     tools = []
     for tool_call in tool_calls:
         tool = dict()
-        tool["name"] = tool_call["tool"]
+        tool["name"] = tool_call["name"]
         arguments = tool_call.get("arguments")
         if arguments:
             tool["arguments"] = dict()
@@ -190,12 +190,12 @@ class ChatSession:
         content = llm_response.content
         try:
             tool_call = self.try_get_tool_call(content)
-            if "tool" in tool_call and "arguments" in tool_call:
+            if "name" in tool_call and "arguments" in tool_call:
                 request_id = str(uuid.uuid4())
                 self._pending_request_id = request_id
                 self._pending_tool_call = tool_call
                 logging.info(
-                    f"Request user confirmation for {tool_call['tool']} {request_id=}"
+                    f"Request user confirmation for {tool_call['name']} {request_id=}"
                 )
                 self._append_llm_response(content)
                 return LLMResponse(
@@ -219,12 +219,12 @@ class ChatSession:
         self._append_llm_response(llm_response)
         try:
             tool_call = self.try_get_tool_call(llm_response)
-            if "tool" in tool_call and "arguments" in tool_call:
+            if "name" in tool_call and "arguments" in tool_call:
                 request_id = str(uuid.uuid4())
                 self._pending_request_id = request_id
                 self._pending_tool_call = tool_call
                 yield LLMStreamResponse(
-                    f"\napprove required {tool_call['tool']}\n",
+                    f"\napprove required {tool_call['name']}\n",
                     request_id=request_id,
                     tool_calls=self.get_pending_tool_calls(),
                     end=True,
@@ -335,7 +335,7 @@ class ChatSession:
 
         try:
             tool_call = self._pending_tool_call
-            tool_name = tool_call["tool"]
+            tool_name = tool_call["name"]
             args = tool_call["arguments"]
             result = await self.toolbox.execute_tool(tool_name, args)
             if result is None:
@@ -397,7 +397,7 @@ class ChatSession:
                         continue
                     else:
                         user_input = (
-                            input(f"Execute tool '{response.tool['tool']}'? (y/n): ")
+                            input(f"Execute tool '{response.tool['name']}'? (y/n): ")
                             .strip()
                             .lower()
                         )

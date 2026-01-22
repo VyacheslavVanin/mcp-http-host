@@ -26,7 +26,7 @@ If user wants to create some application then look in current directory for more
 IMPORTANT: When you need to use a tool, you must ONLY respond with the exact this format below (json between {begin_tool} and {end_tool}):
 {begin_tool}
 {{
-    "tool": "tool-name",
+    "name": "tool-name",
     "arguments": {{
         "argument-name": "value",
         "another-argument-name": "another-value"
