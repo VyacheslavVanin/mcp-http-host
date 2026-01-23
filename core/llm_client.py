@@ -315,5 +315,3 @@ class OpenaiClientOfficial(LLMClientBase):
                 created,
                 end=end,
             )
-
-

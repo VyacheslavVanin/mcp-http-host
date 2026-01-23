@@ -139,7 +139,6 @@ class Configuration:
         """
         return self.port
 
-
     @staticmethod
     def load_config(file_path: str) -> dict[str, Any]:
         """Load server configuration from JSON file.
