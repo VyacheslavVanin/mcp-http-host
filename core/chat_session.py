@@ -9,7 +9,7 @@ from enum import Enum
 
 from .mcpserver import Server, ToolBox
 from .llm_client_base import LLMClientBase, Response
-from core.configuration import Configuration
+from .configuration import Configuration
 
 from fastapi.responses import StreamingResponse
 from .chat_type import ChatType

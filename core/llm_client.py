@@ -5,9 +5,9 @@ import time
 import httpx
 from openai import OpenAI, AsyncOpenAI
 
-from core.configuration import Configuration
-from core.json_reconstruct import JsonReconstruct
-from core.llm_client_base import LLMClientBase, Response
+from .configuration import Configuration
+from .json_reconstruct import JsonReconstruct
+from .llm_client_base import LLMClientBase, Response
 
 
 def iso8601_to_unixtimestamp(date_str):

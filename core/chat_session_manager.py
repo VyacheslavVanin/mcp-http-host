@@ -1,7 +1,7 @@
-from core.chat_session import ChatSession
-from core.llm_client_base import LLMClientBase
-from core.mcpserver import Server
-from core.configuration import Configuration
+from .chat_session import ChatSession
+from .llm_client_base import LLMClientBase
+from .mcpserver import Server
+from .configuration import Configuration
 import uuid
 from enum import Enum
 from .chat_type import ChatType

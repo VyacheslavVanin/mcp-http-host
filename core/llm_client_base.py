@@ -1,4 +1,4 @@
-from core.configuration import Configuration
+from .configuration import Configuration
 from typing import Dict
 
 
