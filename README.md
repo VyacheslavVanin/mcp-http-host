@@ -42,7 +42,7 @@ LLM_PROVIDER=openai
 Example CLI usage:
 
 ```bash
-python main.py --model qwen2.5-coder:latest --port 8000
+uv run main.py --model qwen2.5-coder:latest --port 8000
 ```
 
 ## API Endpoints
