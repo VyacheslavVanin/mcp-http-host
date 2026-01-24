@@ -52,7 +52,7 @@ def make_response(
     return ret
 
 
-def LLMStreamResponse(
+def to_stram_response(
     orig_response: Response,
     request_id: str = None,
     tool_calls=[],
@@ -210,11 +210,11 @@ class ChatSession:
             self._append_llm_response(content)
             return make_response(llm_response)
 
-    def _llm_request_stream(self, messages) -> LLMStreamResponse:
+    def _llm_request_stream(self, messages) -> str:
         llm_response = ""
         for part in self.llm_client.get_response_stream(messages):
             if part and part.content is not None:
-                yield LLMStreamResponse(part)
+                yield to_stram_response(part)
                 llm_response += part.content
         self._append_llm_response(llm_response)
         try:
@@ -223,7 +223,7 @@ class ChatSession:
                 request_id = str(uuid.uuid4())
                 self._pending_request_id = request_id
                 self._pending_tool_call = tool_call
-                yield LLMStreamResponse(
+                yield to_stram_response(
                     f"\napprove required {tool_call['name']}\n",
                     request_id=request_id,
                     tool_calls=self.get_pending_tool_calls(),
@@ -232,11 +232,11 @@ class ChatSession:
                 return
 
             self._append_llm_response(llm_response)
-            yield LLMStreamResponse("", end=True)
+            yield to_stram_response("", end=True)
         except (json.JSONDecodeError, AttributeError) as e:
             print(f"Error in tool call: {e}")
             self._append_llm_response(llm_response)
-            yield LLMStreamResponse("", end=True)
+            yield to_stram_response("", end=True)
 
     async def validate_request(self, user_input: str) -> dict | None:
         """Validate a user request.
