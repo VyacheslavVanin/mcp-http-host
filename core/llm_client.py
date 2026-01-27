@@ -86,6 +86,7 @@ class OpenaiClient(LLMClientBase):
             "model": model,
             "messages": messages,
             "temperature": self.config.temperature,
+            "reasoning_effort": "low",
         }
         if self.config.top_p:
             payload["top_p"] = self.config.top_p
