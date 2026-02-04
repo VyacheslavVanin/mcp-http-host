@@ -11,7 +11,6 @@ class Configuration:
     def __init__(self) -> None:
         """Initialize configuration with environment variables and CLI args."""
         self.load_env()
-        self.api_key = os.getenv("LLM_API_KEY")
 
         # Parse CLI args first
         args = self.parse_args()
@@ -21,6 +20,10 @@ class Configuration:
             args.model if args.model else os.getenv("LLM_MODEL", "qwen2.5-coder:latest")
         )
         self.port = int(args.port) if args.port else int(os.getenv("PORT", "8000"))
+
+        # Handle API key: from CLI arg, env var, or file
+        self.api_key = self._get_api_key(args.api_key_file)
+
         self.llm_provider = (
             args.provider.lower()
             if args.provider
@@ -41,6 +44,33 @@ class Configuration:
         self.max_rps: int = int(args.max_rps) if args.max_rps else 100
         self.verify_ssl: bool = bool(args.verify_ssl)
         self.timeout: float = float(args.timeout) if args.timeout else None
+
+    def _get_api_key(self, api_key_file_path: str = None) -> str:
+        """Get API key from CLI argument, environment variable, or file path.
+
+        Args:
+            api_key_file_path: Optional path to file containing the API key
+
+        Returns:
+            The API key as a string
+        """
+        # Check if API key is provided as a command-line argument (would be the file path)
+        if api_key_file_path:
+            try:
+                with open(api_key_file_path, 'r', encoding='utf-8') as f:
+                    return f.read().strip()
+            except FileNotFoundError:
+                raise ValueError(f"API key file not found: {api_key_file_path}")
+            except Exception as e:
+                raise ValueError(f"Error reading API key file: {str(e)}")
+
+        # Fall back to environment variable
+        api_key = os.getenv("LLM_API_KEY")
+        if api_key:
+            return api_key
+
+        # If no API key is found anywhere, return None (will be checked later)
+        return None
 
     @staticmethod
     def parse_args():
@@ -112,6 +142,11 @@ class Configuration:
         parser.add_argument(
             "--timeout",
             help="Set request timeout in seconds (float). None or 0 - no timeout",
+            default=None,
+        )
+        parser.add_argument(
+            "--api-key-file",
+            help="Path to file containing the API key",
             default=None,
         )
         return parser.parse_args()
@@ -201,8 +236,11 @@ class Configuration:
             The API key as a string.
 
         Raises:
-            ValueError: If the API key is not found in environment variables.
+            ValueError: If the API key is not found from any source.
         """
         if not self.api_key:
-            raise ValueError("LLM_API_KEY not found in environment variables")
+            raise ValueError("LLM_API_KEY not found. Please provide it via:\n"
+                           "- Environment variable LLM_API_KEY\n"
+                           "- Command-line argument --api-key-file\n"
+                           "- Or pass it in the API request body")
         return self.api_key

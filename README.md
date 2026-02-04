@@ -10,7 +10,7 @@ Configuration is managed via environment variables and CLI arguments.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `LLM_API_KEY` | API key for LLM provider | - |
+| `LLM_API_KEY` | API key for LLM provider (alternative to --api-key-file) | - |
 | `LLM_MODEL` | Model name to use | `qwen2.5-coder:latest` |
 | `PORT` | Port to run server on | `8000` |
 | `LLM_PROVIDER` | LLM provider (`openai`) | `openai` |
@@ -33,6 +33,7 @@ LLM_PROVIDER=openai
 | `--port` | Port to run server on | `--port 8000` |
 | `--provider` | LLM provider (`openai`) | `--provider openai` |
 | `--openai-base-url` | Base URL for OpenAI API | `--openai-base-url https://api.openai.com/v1` |
+| `--api-key-file` | Path to file containing the API key | `--api-key-file /path/to/api.key` |
 | `--servers-config` | Path to servers config file | `--servers-config config/servers.json` |
 | `--current-directory` | Working directory | `--current-directory /projects` |
 | `--context-window-size` | Context window size | `--context-window-size 2048` |
@@ -42,7 +43,12 @@ LLM_PROVIDER=openai
 Example CLI usage:
 
 ```bash
+# Using environment variable
+export LLM_API_KEY=your-api-key
 uv run main.py --model qwen2.5-coder:latest --port 8000
+
+# Using API key file
+uv run main.py --model qwen2.5-coder:latest --port 8000 --api-key-file /path/to/api.key
 ```
 
 ## API Endpoints

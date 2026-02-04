@@ -116,9 +116,9 @@ async def handle_approval(request: ApproveRequest) -> dict:
 
 
 @app.get("/session_state")
-async def get_session_state() -> dict:
+async def get_session_state(session_id: str) -> dict:
     """Get current session state including messages and pending requests."""
-    chat_session = session_manager.get_session(request.session_id)
+    chat_session = session_manager.get_session(session_id)
     if chat_session is None:
         raise HTTPException(status_code=404, detail="Session not found")
 
