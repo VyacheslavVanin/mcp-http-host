@@ -63,6 +63,51 @@ def to_stram_response(
     return json.dumps(ret) + "\n"
 
 
+class PendingToolsManager:
+    """Manages pending tool calls in a chat session."""
+
+    def __init__(self):
+        self._pending_tools: dict[str, dict] = {}  # Maps request_id to tool_call
+
+    def get_pending_tool_calls(self) -> list[dict]:
+        return list(self._pending_tools.values())
+
+    def add_pending_tool_call(self, request_id: str, tool_call: dict):
+        self._pending_tools[request_id] = tool_call
+
+    def clear_pending_calls(self):
+        self._pending_tools.clear()
+
+    def clear_pending_call(self, request_id: str):
+        if request_id in self._pending_tools:
+            del self._pending_tools[request_id]
+
+    def get_pending_call(self, request_id: str) -> dict | None:
+        return self._pending_tools.get(request_id)
+
+    def has_pending_calls(self) -> bool:
+        return len(self._pending_tools) > 0
+
+    @property
+    def pending_request_ids(self):
+        return list(self._pending_tools.keys())
+
+    # Backward compatibility methods
+    @property
+    def pending_request_id(self):
+        """Returns the first pending request ID for backward compatibility."""
+        if self._pending_tools:
+            return next(iter(self._pending_tools))
+        return None
+
+    @property
+    def pending_tool_call(self):
+        """Returns the first pending tool call for backward compatibility."""
+        if self._pending_tools:
+            return self._pending_tools[self.pending_request_id]
+        return None
+
+
 tool_box = ToolBox(Configuration())
 
 
@@ -80,20 +125,16 @@ class ChatSession:
         self.toolbox: ToolBox = tool_box
         self.llm_client: LLMClientBase = llm_client
         self.messages: list[dict[str, str]] = []
-        self._pending_request_id: str | None = None
-        self._pending_tool_call: dict | None = None
+        self.pending_tools_manager: PendingToolsManager = PendingToolsManager()
         self.current_directory: str = current_directory
         self.system_prompt_template: str = system_prompt_template
         self.chat_type = chat_type
 
     def get_pending_tool_calls(self) -> list[dict]:
-        if self._pending_tool_call is not None:
-            return [self._pending_tool_call]
-        return []
+        return self.pending_tools_manager.get_pending_tool_calls()
 
     def clear_pending_calls(self):
-        self._pending_request_id = None
-        self._pending_tool_call = None
+        self.pending_tools_manager.clear_pending_calls()
 
     async def init_servers(self) -> bool:
         return await self.toolbox.initialize()
@@ -192,8 +233,7 @@ class ChatSession:
             tool_call = self.try_get_tool_call(content)
             if "name" in tool_call and "arguments" in tool_call:
                 request_id = str(uuid.uuid4())
-                self._pending_request_id = request_id
-                self._pending_tool_call = tool_call
+                self.pending_tools_manager.add_pending_tool_call(request_id, tool_call)
                 logging.info(
                     f"Request user confirmation for {tool_call['name']} {request_id=}"
                 )
@@ -221,8 +261,7 @@ class ChatSession:
             tool_call = self.try_get_tool_call(llm_response)
             if "name" in tool_call and "arguments" in tool_call:
                 request_id = str(uuid.uuid4())
-                self._pending_request_id = request_id
-                self._pending_tool_call = tool_call
+                self.pending_tools_manager.add_pending_tool_call(request_id, tool_call)
                 yield to_stram_response(
                     f"\napprove required {tool_call['name']}\n",
                     request_id=request_id,
@@ -248,10 +287,10 @@ class ChatSession:
             str: The LLM response with error
             None: If request is ok
         """
-        if self._pending_request_id is not None:
+        if self.pending_tools_manager.has_pending_calls():
             return make_response(
                 "approve required ",
-                request_id=self._pending_request_id,
+                request_id=self.pending_tools_manager.pending_request_id,
                 tool_calls=self.get_pending_tool_calls(),
             )
 
@@ -315,16 +354,15 @@ class ChatSession:
             str: The result of tool execution or denial message
         """
         if (
-            self._pending_request_id is None
-            or self._pending_request_id != request_id
-            or self._pending_tool_call is None
+            not self.pending_tools_manager.has_pending_calls()
+            or self.pending_tools_manager.get_pending_call(request_id) is None
         ):
             logging.warning(
-                f"Tool approval request not found or expired. {request_id=} {self._pending_request_id=}"
+                f"Tool approval request not found or expired. {request_id=}"
             )
             return make_response(
                 "Invalid or expired request ID",
-                request_id=self._pending_request_id,
+                request_id=request_id,
                 tool_calls=self.get_pending_tool_calls(),
             )
 
@@ -334,14 +372,20 @@ class ChatSession:
             return make_response("Tool execution denied")
 
         try:
-            tool_call = self._pending_tool_call
+            tool_call = self.pending_tools_manager.get_pending_call(request_id)
+            if tool_call is None:
+                return make_response(
+                    f"Tool call not found for request ID: {request_id}",
+                    request_id=request_id,
+                    tool_calls=self.get_pending_tool_calls(),
+                )
             tool_name = tool_call["name"]
             args = tool_call["arguments"]
             result = await self.toolbox.execute_tool(tool_name, args)
             if result is None:
                 return make_response(
                     f"No server found with tool: ",
-                    request_id=self._pending_request_id,
+                    request_id=request_id,
                     tool_calls=self.get_pending_tool_calls(),
                 )
 
@@ -364,7 +408,7 @@ class ChatSession:
             self._append_system_message(f"Tool execution failed with error {str(e)}")
             return make_response(
                 f"Error executing tool: {str(e)}",
-                request_id=self._pending_request_id,
+                request_id=request_id,
                 tool_calls=self.get_pending_tool_calls(),
             )
 
@@ -376,8 +420,8 @@ class ChatSession:
         """
         return {
             "messages": self.messages,
-            "_pending_request_id": self._pending_request_id,
-            "_pending_tool_call": self._pending_tool_call,
+            "_pending_request_id": self.pending_tools_manager.pending_request_id,
+            "_pending_tool_call": self.pending_tools_manager.pending_tool_call,
         }
 
     async def start(self) -> None:
@@ -388,7 +432,7 @@ class ChatSession:
         try:
             while True:
                 try:
-                    if not self._pending_request_id:
+                    if not self.pending_tools_manager.has_pending_calls():
                         user_input = input("You: ").strip().lower()
                         response = await self.user_request(user_input)
                         if not response:
