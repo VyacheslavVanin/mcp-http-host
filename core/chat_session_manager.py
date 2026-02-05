@@ -68,6 +68,7 @@ After receiving a tool's response:
 5. Avoid simply repeating the raw data
 Please use only the tools that are explicitly defined above.
 
+Use only absolute file names in arguments of tool calls.
 When you use the 'read_file' tool do not reply with file content unless asked explicitly (user can see files himself).
 When you use the 'edit_files' or 'write_whole_file' tools do not reply with resulting file to user.
 When you need to write or edit files DO NOT print to user contents of file before of after editing.
@@ -77,7 +78,7 @@ If you you need create large file (more than 100 lines) create some skeleton fil
 If you need to read multiple files use 'read_multiple_files' tool.
 If you need to write multiple whole files use 'write_multiple_files' tool.
 
-Yor current directory is {current_directory}
+Yor current directory is: {current_directory}
 """
 
 
