@@ -50,7 +50,6 @@ def redirect_std_outputs(stdout_file, stderr_file):
 
 class StartSession(BaseModel):
     current_directory: str
-    llm_provider: str = "openai"
     model: str
     provider_base_url: str = "http://localhost:11434/v1"
     api_key: str = ""
@@ -76,7 +75,7 @@ class ApproveRequest(BaseModel):
 session_manager: ChatSessionManager = ChatSessionManager()
 
 
-def _get_llm_client(request, config) -> LLMClientBase:
+def _get_llm_client(request:StartSession, config) -> LLMClientBase:
     if config.verify_ssl:
         llm_client = OpenaiClientOfficial(copy.deepcopy(config))
     else:

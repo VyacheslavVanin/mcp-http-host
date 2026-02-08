@@ -24,11 +24,6 @@ class Configuration:
         # Handle API key: from CLI arg, env var, or file
         self.api_key = self._get_api_key(args.api_key_file)
 
-        self.llm_provider = (
-            args.provider.lower()
-            if args.provider
-            else os.getenv("LLM_PROVIDER", "openai").lower()
-        )
         self.openai_base_url = (
             args.openai_base_url
             if args.openai_base_url
