@@ -44,6 +44,8 @@ class Configuration:
         self.max_rps: int = int(args.max_rps) if args.max_rps else 100
         self.verify_ssl: bool = bool(args.verify_ssl)
         self.timeout: float = float(args.timeout) if args.timeout else None
+        self.stdout_file: str = args.stdout_file
+        self.stderr_file: str = args.stderr_file
 
     def _get_api_key(self, api_key_file_path: str = None) -> str:
         """Get API key from CLI argument, environment variable, or file path.
@@ -143,6 +145,12 @@ class Configuration:
             "--timeout",
             help="Set request timeout in seconds (float). None or 0 - no timeout",
             default=None,
+        )
+        parser.add_argument(
+            "--stdout-file", type=str, help="File path to redirect stdout messages"
+        )
+        parser.add_argument(
+            "--stderr-file", type=str, help="File path to redirect stderr messages"
         )
         parser.add_argument(
             "--api-key-file",

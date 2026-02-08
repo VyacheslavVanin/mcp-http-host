@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 import copy
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
@@ -32,6 +33,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def redirect_std_outputs(stdout_file, stderr_file):
+    """Redirect stdout and stderr if file paths are provided."""
+    if stdout_file:
+        stdout_fd = os.open(stdout_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+        os.dup2(stdout_fd, sys.stdout.fileno())
+        os.close(stdout_fd)
+
+    if stderr_file:
+        stderr_fd = os.open(stderr_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+        os.dup2(stderr_fd, sys.stderr.fileno())
+        os.close(stderr_fd)
 
 
 class StartSession(BaseModel):
@@ -147,5 +161,5 @@ async def start_session(request: StartSession) -> dict:
 
 if __name__ == "__main__":
     import uvicorn
-
+    redirect_std_outputs(config.stdout_file, config.stderr_file)
     uvicorn.run(app, host="0.0.0.0", port=config.server_port)
