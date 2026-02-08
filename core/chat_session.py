@@ -108,7 +108,8 @@ class PendingToolsManager:
         return None
 
 
-tool_box = ToolBox(Configuration())
+configuration = Configuration()
+tool_box = ToolBox(Configuration.load_config(configuration.servers_config_path))
 
 
 class ChatSession:
