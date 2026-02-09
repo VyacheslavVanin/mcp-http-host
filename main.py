@@ -2,6 +2,7 @@ import logging
 import os
 import sys
 import copy
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -92,9 +93,11 @@ def _get_llm_client(request:StartSession, config) -> LLMClientBase:
     return llm_client
 
 
-@app.on_event("startup")
-async def startup_event():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     """Initialize the chat session on startup."""
+    yield
+    # Add cleanup code here if needed.
 
 
 @app.post("/user_request")
