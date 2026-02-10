@@ -1,6 +1,6 @@
 from .chat_session import ChatSession
 from .llm_client_base import LLMClientBase
-from .mcpserver import Server
+from mcptoolbox.mcpserver import Server
 from .configuration import Configuration
 import uuid
 from enum import Enum

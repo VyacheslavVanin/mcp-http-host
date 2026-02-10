@@ -1,3 +1,6 @@
 [submodule "basic-mcp-server"]
 	path = basic-mcp-server
 	url = https://github.com/VyacheslavVanin/basic-mcp-server.git
+[submodule "mcptoolbox"]
+	path = mcptoolbox
+	url = https://github.com/VyacheslavVanin/mcptoolbox.git

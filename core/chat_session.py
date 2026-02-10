@@ -8,7 +8,7 @@ import sys
 from typing import Any
 from enum import Enum
 
-from .mcpserver import Server, ToolBox
+from mcptoolbox.mcpserver import Server, ToolBox
 from .llm_client_base import LLMClientBase, Response
 from .configuration import Configuration
 

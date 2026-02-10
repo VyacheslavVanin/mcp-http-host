@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from core.configuration import Configuration
 
-from core.mcpserver import Server
+from mcptoolbox.mcpserver import Server
 from core.chat_session import ChatSession
 from core.chat_session_manager import ChatSessionManager, ChatType
 from core.llm_client import (
