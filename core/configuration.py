@@ -54,7 +54,7 @@ class Configuration:
         # Check if API key is provided as a command-line argument (would be the file path)
         if api_key_file_path:
             try:
-                with open(api_key_file_path, 'r', encoding='utf-8') as f:
+                with open(api_key_file_path, "r", encoding="utf-8") as f:
                     return f.read().strip()
             except FileNotFoundError:
                 raise ValueError(f"API key file not found: {api_key_file_path}")
@@ -242,8 +242,10 @@ class Configuration:
             ValueError: If the API key is not found from any source.
         """
         if not self.api_key:
-            raise ValueError("LLM_API_KEY not found. Please provide it via:\n"
-                           "- Environment variable LLM_API_KEY\n"
-                           "- Command-line argument --api-key-file\n"
-                           "- Or pass it in the API request body")
+            raise ValueError(
+                "LLM_API_KEY not found. Please provide it via:\n"
+                "- Environment variable LLM_API_KEY\n"
+                "- Command-line argument --api-key-file\n"
+                "- Or pass it in the API request body"
+            )
         return self.api_key

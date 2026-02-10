@@ -174,7 +174,7 @@ class ToolBox:
             except Exception as e:
                 logging.warning(f"Warning during final cleanup: {e}")
 
-    async def execute_tool(self, tool_name, tool_args):
+    async def execute_tool(self, tool_name: str, tool_args: dict[str, Any]):
         for server in self.servers:
             tools = self.tools[server.name]
             if any(tool.name == tool_name for tool in tools):
@@ -191,3 +191,43 @@ class ToolBox:
                 [tool.format_for_llm() for tool in all_tools]
             )
         return self.tools_description
+
+    # returns tools in openai format like this:
+    # [
+    #   {
+    #     "type": "function",
+    #     "function": {
+    #       "name": "get_current_weather",
+    #       "description": "Get the current weather in a given location",
+    #       "parameters": {
+    #         "type": "object",
+    #         "properties": {
+    #           "location": {
+    #             "type": "string",
+    #             "description": "The city and state, e.g. San Francisco, CA"
+    #           },
+    #           "unit": {
+    #             "type": "string",
+    #             "enum": ["celsius", "fahrenheit"]
+    #           }
+    #         },
+    #         "required": ["location"]
+    #       }
+    #     }
+    #   }
+    # ]
+    def get_tools(self) -> list[dict[str, Any]]:
+        tools_list: list[dict[str, Any]] = []
+        for server_name, tools in self.tools.items():
+            for tool in tools:
+                tools_list.append(
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": tool.name,
+                            "description": tool.description,
+                            "parameters": tool.inputSchema,
+                        },
+                    }
+                )
+        return tools_list

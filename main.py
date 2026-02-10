@@ -76,7 +76,7 @@ class ApproveRequest(BaseModel):
 session_manager: ChatSessionManager = ChatSessionManager()
 
 
-def _get_llm_client(request:StartSession, config) -> LLMClientBase:
+def _get_llm_client(request: StartSession, config) -> LLMClientBase:
     if config.verify_ssl:
         llm_client = OpenaiClientOfficial(copy.deepcopy(config))
     else:
@@ -163,5 +163,6 @@ async def start_session(request: StartSession) -> dict:
 
 if __name__ == "__main__":
     import uvicorn
+
     redirect_std_outputs(config.stdout_file, config.stderr_file)
     uvicorn.run(app, host="0.0.0.0", port=config.server_port)
