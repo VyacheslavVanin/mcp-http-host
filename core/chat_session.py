@@ -169,6 +169,9 @@ class ChatSession:
     def _append_system_message(self, message):
         self.messages.append({"role": "system", "content": message})
 
+    def _append_tool_message(self, message):
+        self.messages.append({"role": "tool", "content": message})
+
     def _append_user_message(self, message):
         self.messages.append({"role": "user", "content": message})
 
@@ -317,7 +320,7 @@ class ChatSession:
         """
 
         if system_context:
-            self._append_system_message(f"additional_context:\n{system_context}\n")
+            self._append_tool_message(f"additional_context:\n{system_context}\n")
         self._append_user_message(user_input)
         return await self._llm_request(self.messages)
 
@@ -336,7 +339,7 @@ class ChatSession:
         """
 
         if system_context:
-            self._append_system_message(f"additional_context:\n{system_context}\n")
+            self._append_tool_message(f"additional_context:\n{system_context}\n")
         self._append_user_message(user_input)
 
         def stream_generator():
@@ -370,7 +373,7 @@ class ChatSession:
 
         if not approve:
             self.clear_pending_calls()
-            self._append_system_message(f"User denied tool execution")
+            self._append_tool_message(f"User denied tool execution")
             return make_response("Tool execution denied")
 
         try:
@@ -391,7 +394,7 @@ class ChatSession:
                     tool_calls=self.get_pending_tool_calls(),
                 )
 
-            self._append_system_message(
+            self._append_tool_message(
                 f"User approved {tool_name} tool execution. {tool_name} tool execution result:\n{result}"
             )
 
@@ -407,7 +410,7 @@ class ChatSession:
                 return await self._llm_request(self.messages)
 
         except Exception as e:
-            self._append_system_message(f"Tool execution failed with error {str(e)}")
+            self._append_tool_message(f"Tool execution failed with error {str(e)}")
             return make_response(
                 f"Error executing tool: {str(e)}",
                 request_id=request_id,
