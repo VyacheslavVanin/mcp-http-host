@@ -100,8 +100,7 @@ class TestChatSessionHappyPath:
         assert chat_session.current_directory == "/tmp/test"
         assert chat_session.llm_client == mock_llm_client
         assert chat_session.messages == []
-        assert chat_session._pending_request_id is None
-        assert chat_session._pending_tool_call is None
+        assert chat_session.pending_tools_manager is not None
         assert chat_session.chat_type == ChatType.CHAT
 
     def test_init_system_message(self, chat_session):
@@ -118,8 +117,7 @@ class TestChatSessionHappyPath:
         assert result is True
 
         # Check that pending calls are cleared
-        assert chat_session._pending_request_id is None
-        assert chat_session._pending_tool_call is None
+        assert not chat_session.pending_tools_manager.has_pending_calls()
 
         # Check that system message was added
         expected_messages = [
@@ -382,8 +380,7 @@ class TestChatSessionToolApproval:
         # Set up a pending tool call
         request_id = "test-request-id"
         tool_call = {"name": "test_tool", "arguments": {"param": "value"}}
-        chat_session._pending_request_id = request_id
-        chat_session._pending_tool_call = tool_call
+        chat_session.pending_tools_manager.add_pending_tool_call(request_id, tool_call)
 
         # Mock the LLM client to return a response after tool execution
         llm_client_mock = LLMClientMock(
@@ -415,8 +412,7 @@ class TestChatSessionToolApproval:
         assert result["model"] == "test-model"
 
         # Verify that the pending call was cleared
-        assert chat_session._pending_request_id is None
-        assert chat_session._pending_tool_call is None
+        assert not chat_session.pending_tools_manager.has_pending_calls()
 
         # Verify that the tool was executed
         chat_session.toolbox.execute_tool.assert_called_once_with(
@@ -437,8 +433,7 @@ class TestChatSessionToolApproval:
         # Set up a pending tool call
         request_id = "test-request-id"
         tool_call = {"name": "test_tool", "arguments": {"param": "value"}}
-        chat_session._pending_request_id = request_id
-        chat_session._pending_tool_call = tool_call
+        chat_session.pending_tools_manager.add_pending_tool_call(request_id, tool_call)
 
         # Deny the request
         result = asyncio.run(chat_session.approve(request_id, False))
@@ -453,13 +448,12 @@ class TestChatSessionToolApproval:
         assert result == expected_result
 
         # Verify that the pending call was cleared
-        assert chat_session._pending_request_id is None
-        assert chat_session._pending_tool_call is None
+        assert not chat_session.pending_tools_manager.has_pending_calls()
 
-        # Verify that system message was added about denial
+        # Verify that tool message was added about denial
         last_message = chat_session.messages[-1]
         assert last_message == {
-            "role": "system",
+            "role": "tool",
             "content": "User denied tool execution",
         }
 
@@ -478,8 +472,10 @@ class TestChatSessionToolApproval:
         valid_request_id = "valid-request-id"
         invalid_request_id = "invalid-request-id"
         tool_call = {"name": "test_tool", "arguments": {"param": "value"}}
-        chat_session._pending_request_id = valid_request_id
-        chat_session._pending_tool_call = tool_call
+        chat_session.pending_tools_manager.clear_pending_calls()
+        chat_session.pending_tools_manager.add_pending_tool_call(
+            valid_request_id, tool_call
+        )
 
         # Try to approve with invalid request ID
         result = asyncio.run(chat_session.approve(invalid_request_id, True))
@@ -494,5 +490,7 @@ class TestChatSessionToolApproval:
         assert result == expected_result
 
         # Verify that the pending call was NOT cleared
-        assert chat_session._pending_request_id == valid_request_id
-        assert chat_session._pending_tool_call == tool_call
+        assert (
+            chat_session.pending_tools_manager.get_pending_call(valid_request_id)
+            == tool_call
+        )

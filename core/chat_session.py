@@ -269,7 +269,7 @@ class ChatSession:
                 self.pending_tools_manager.add_pending_tool_call(request_id, tool_call)
                 yield to_stram_response(
                     f"\napprove required {tool_call['name']}\n",
-                    request_id=request_id,
+                    request_id=self.pending_tools_manager.pending_request_id,
                     tool_calls=self.get_pending_tool_calls(),
                     end=True,
                 )
@@ -367,7 +367,7 @@ class ChatSession:
             )
             return make_response(
                 "Invalid or expired request ID",
-                request_id=request_id,
+                request_id=self.pending_tools_manager.pending_request_id,
                 tool_calls=self.get_pending_tool_calls(),
             )
 
