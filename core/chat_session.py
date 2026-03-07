@@ -53,7 +53,7 @@ def make_response(
     return ret
 
 
-def to_stram_response(
+def to_stream_response(
     orig_response: Response,
     request_id: str = None,
     tool_calls=[],
@@ -132,6 +132,19 @@ class ChatSession:
         self.system_prompt_template: str = system_prompt_template
         self.chat_type = chat_type
 
+    def debug_write_messages_to_tmp_file(
+        self, file_name="/tmp/llm-requester.messages.log"
+    ):
+        """Write a debug message to a temporary file for debugging purposes.
+        Args:
+            file_name: The path to the debug log file. Defaults to '/tmp/llm-requester.messages.log'.
+        """
+        try:
+            with open(file_name, "w") as f:
+                f.write(json.dumps(self.messages))
+        except Exception as e:
+            logging.error(f"Failed to write debug message to {file_name}: {e}")
+
     def get_pending_tool_calls(self) -> list[dict]:
         return self.pending_tools_manager.get_pending_tool_calls()
 
@@ -163,17 +176,93 @@ class ChatSession:
 
         return ret
 
+    def _validate_tool_call(self, tool_call: dict) -> str | None:
+        """Validate a tool call against its schema.
+
+        Args:
+            tool_call: The tool call to validate
+
+        Returns:
+            None if valid, error message string if invalid
+        """
+        tool_name = tool_call.get("name")
+        arguments = tool_call.get("arguments", {})
+
+        # Find the tool schema
+        tool_schema = None
+        for server_tools in self.toolbox.tools.values():
+            for tool in server_tools:
+                if tool.name == tool_name:
+                    tool_schema = tool.inputSchema
+                    break
+            if tool_schema:
+                break
+
+        if not tool_schema:
+            logging.warning(f"Tool '{tool_name}' not found in available tools")
+            return f"Tool '{tool_name}' not found"
+
+        # Validate required arguments
+        required = tool_schema.get("required", [])
+        for req_arg in required:
+            if req_arg not in arguments:
+                logging.warning(
+                    f"Missing required argument: '{req_arg}' for  tool '{tool_name}'"
+                )
+                return f"Missing required argument: '{req_arg}'"
+
+        # Validate argument types and unknown arguments
+        properties = tool_schema.get("properties", {})
+        for arg_name, arg_value in arguments.items():
+            # Check for unknown arguments
+            if arg_name not in properties:
+                logging.warning(f"Unknown argument '{arg_name}' for tool '{tool_name}'")
+                return f"Invalid argument: '{arg_name}' not in schema"
+
+            # Check argument type
+            prop_schema = properties[arg_name]
+            expected_type = prop_schema.get("type")
+            if expected_type:
+                actual_type = type(arg_value).__name__
+                type_mapping = {
+                    "string": "str",
+                    "integer": "int",
+                    "number": "float",
+                    "boolean": "bool",
+                    "array": "list",
+                    "object": "dict",
+                }
+                expected_python_type = type_mapping.get(expected_type)
+                if expected_python_type and actual_type != expected_python_type:
+                    logging.warning(
+                        f"Invalid type for argument '{arg_name}' of tool '{tool_name}': expected {expected_type}, got {actual_type}"
+                    )
+                    return f"Invalid type for argument '{arg_name}': expected {expected_type}, got {actual_type}"
+
+            # Validate enum values
+            if "enum" in prop_schema and arg_value not in prop_schema["enum"]:
+                logging.warning(
+                    f"Invalid value for argument '{arg_name}' of tool '{tool_name}': expected one of {prop_schema['enum']}, got '{arg_value}'"
+                )
+                return f"Invalid value for argument '{arg_name}': '{arg_value}' not in {prop_schema['enum']}"
+
+        return None
+
     def _append_llm_response(self, message):
         self.messages.append({"role": "assistant", "content": message})
+        self.debug_write_messages_to_tmp_file()
 
     def _append_system_message(self, message):
         self.messages.append({"role": "system", "content": message})
+        self.debug_write_messages_to_tmp_file()
 
     def _append_tool_message(self, message):
         self.messages.append({"role": "tool", "content": message})
+        self.debug_write_messages_to_tmp_file()
 
     def _append_user_message(self, message):
         self.messages.append({"role": "user", "content": message})
+        self.debug_write_messages_to_tmp_file()
 
     def add_rulesmd_to_context(self) -> None:
         """
@@ -237,6 +326,16 @@ class ChatSession:
         try:
             tool_call = self.try_get_tool_call(content)
             if "name" in tool_call and "arguments" in tool_call:
+                # Validate tool call before requesting approval
+                validation_error = self._validate_tool_call(tool_call)
+                if validation_error:
+                    # Deny invalid tool call immediately
+                    self._append_llm_response(content)
+                    self._append_tool_message(
+                        f"Tool call validation failed: {validation_error}"
+                    )
+                    return make_response(f"Tool call invalid: {validation_error}")
+
                 request_id = str(uuid.uuid4())
                 self.pending_tools_manager.add_pending_tool_call(request_id, tool_call)
                 logging.info(
@@ -251,7 +350,8 @@ class ChatSession:
 
             self._append_llm_response(content)
             return make_response(llm_response)
-        except (json.JSONDecodeError, AttributeError):
+        except (json.JSONDecodeError, AttributeError) as e:
+            logging.error(f"Failed to parse tool call: {e}")
             self._append_llm_response(content)
             return make_response(llm_response)
 
@@ -259,15 +359,25 @@ class ChatSession:
         llm_response = ""
         for part in self.llm_client.get_response_stream(messages):
             if part and part.content is not None:
-                yield to_stram_response(part)
+                yield to_stream_response(part)
                 llm_response += part.content
         self._append_llm_response(llm_response)
         try:
             tool_call = self.try_get_tool_call(llm_response)
             if "name" in tool_call and "arguments" in tool_call:
+                # Validate tool call before requesting approval
+                validation_error = self._validate_tool_call(tool_call)
+                if validation_error:
+                    # Deny invalid tool call immediately
+                    yield to_stream_response(
+                        f"\nTool call invalid: {validation_error}\n",
+                        end=True,
+                    )
+                    return
+
                 request_id = str(uuid.uuid4())
                 self.pending_tools_manager.add_pending_tool_call(request_id, tool_call)
-                yield to_stram_response(
+                yield to_stream_response(
                     f"\napprove required {tool_call['name']}\n",
                     request_id=self.pending_tools_manager.pending_request_id,
                     tool_calls=self.get_pending_tool_calls(),
@@ -275,12 +385,10 @@ class ChatSession:
                 )
                 return
 
-            self._append_llm_response(llm_response)
-            yield to_stram_response("", end=True)
+            yield to_stream_response("", end=True)
         except (json.JSONDecodeError, AttributeError) as e:
-            print(f"Error in tool call: {e}")
-            self._append_llm_response(llm_response)
-            yield to_stram_response("", end=True)
+            logging.error(f"Failed to parse tool call: {e}")
+            yield to_stream_response("", end=True)
 
     async def validate_request(self, user_input: str) -> dict | None:
         """Validate a user request.

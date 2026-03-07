@@ -494,3 +494,187 @@ class TestChatSessionToolApproval:
             chat_session.pending_tools_manager.get_pending_call(valid_request_id)
             == tool_call
         )
+
+
+class TestChatSessionInvalidToolParameters:
+    """Test cases for handling invalid tool parameters."""
+
+    def test_approve_tool_with_missing_argument(self, chat_session):
+        """Test approving a tool call with missing required argument."""
+        # Mock the toolbox to avoid external dependencies
+        chat_session.toolbox = AsyncMock()
+        chat_session.toolbox.get_tools_descriptions.return_value = "Test tools"
+        chat_session.toolbox.initialize.return_value = True
+        chat_session.toolbox.cleanup_servers.return_value = None
+        chat_session.toolbox.execute_tool = AsyncMock(
+            side_effect=ValueError("Missing required argument: 'file_path'")
+        )
+
+        # Initialize system message first
+        asyncio.run(chat_session.init_system_message())
+
+        # Set up a pending tool call with missing argument
+        request_id = "test-request-id"
+        tool_call = {"name": "read_file", "arguments": {}}  # Missing required 'file_path'
+        chat_session.pending_tools_manager.clear_pending_calls()
+        chat_session.pending_tools_manager.add_pending_tool_call(request_id, tool_call)
+
+        # Approve the request with missing argument
+        result = asyncio.run(chat_session.approve(request_id, True))
+
+        # Check that the result contains error information
+        # Note: requires_approval is True because request_id is passed to make_response
+        assert result["requires_approval"] is True
+        assert result["request_id"] == request_id
+        assert "Error" in result["message"]
+        assert "Missing" in result["message"]
+        assert "file_path" in result["message"]
+
+        # Verify that the pending call is NOT cleared on error (as per actual implementation)
+        assert chat_session.pending_tools_manager.has_pending_calls()
+        assert chat_session.pending_tools_manager.get_pending_call(request_id) == tool_call
+
+        # Verify that a tool message was added about the error
+        last_message = chat_session.messages[-1]
+        assert last_message["role"] == "tool"
+        assert "Tool execution failed" in last_message["content"]
+        assert "Missing required argument" in last_message["content"]
+
+    def test_approve_tool_with_invalid_argument(self, chat_session):
+        """Test approving a tool call with argument not in schema."""
+        # Mock the toolbox to avoid external dependencies
+        chat_session.toolbox = AsyncMock()
+        chat_session.toolbox.get_tools_descriptions.return_value = "Test tools"
+        chat_session.toolbox.initialize.return_value = True
+        chat_session.toolbox.cleanup_servers.return_value = None
+        chat_session.toolbox.execute_tool = AsyncMock(
+            side_effect=ValueError("Invalid argument: 'invalid_param' not in schema")
+        )
+
+        # Initialize system message first
+        asyncio.run(chat_session.init_system_message())
+
+        # Set up a pending tool call with invalid argument
+        request_id = "test-request-id"
+        tool_call = {
+            "name": "read_file",
+            "arguments": {"file_path": "test.txt", "invalid_param": "value"},
+        }
+        chat_session.pending_tools_manager.clear_pending_calls()
+        chat_session.pending_tools_manager.add_pending_tool_call(request_id, tool_call)
+
+        # Approve the request with invalid argument
+        result = asyncio.run(chat_session.approve(request_id, True))
+
+        # Check that the result contains error information
+        # Note: requires_approval is True because request_id is passed to make_response
+        assert result["requires_approval"] is True
+        assert result["request_id"] == request_id
+        assert "Error" in result["message"]
+        assert "Invalid argument" in result["message"]
+        assert "invalid_param" in result["message"]
+
+        # Verify that the pending call is NOT cleared on error (as per actual implementation)
+        assert chat_session.pending_tools_manager.has_pending_calls()
+        assert chat_session.pending_tools_manager.get_pending_call(request_id) == tool_call
+
+        # Verify that a tool message was added about the error
+        last_message = chat_session.messages[-1]
+        assert last_message["role"] == "tool"
+        assert "Tool execution failed" in last_message["content"]
+        assert "Invalid argument" in last_message["content"]
+
+    def test_approve_tool_with_multiple_missing_arguments(self, chat_session):
+        """Test approving a tool call with multiple missing required arguments."""
+        # Mock the toolbox to avoid external dependencies
+        chat_session.toolbox = AsyncMock()
+        chat_session.toolbox.get_tools_descriptions.return_value = "Test tools"
+        chat_session.toolbox.initialize.return_value = True
+        chat_session.toolbox.cleanup_servers.return_value = None
+        chat_session.toolbox.execute_tool = AsyncMock(
+            side_effect=ValueError(
+                "Missing required arguments: 'source_file', 'destination_file'"
+            )
+        )
+
+        # Initialize system message first
+        asyncio.run(chat_session.init_system_message())
+
+        # Set up a pending tool call with multiple missing arguments
+        request_id = "test-request-id"
+        tool_call = {
+            "name": "copy_file",
+            "arguments": {},  # Missing both required arguments
+        }
+        chat_session.pending_tools_manager.clear_pending_calls()
+        chat_session.pending_tools_manager.add_pending_tool_call(request_id, tool_call)
+
+        # Approve the request with multiple missing arguments
+        result = asyncio.run(chat_session.approve(request_id, True))
+
+        # Check that the result contains error information
+        # Note: requires_approval is True because request_id is passed to make_response
+        assert result["requires_approval"] is True
+        assert result["request_id"] == request_id
+        assert "Error" in result["message"]
+        assert "Missing required arguments" in result["message"]
+        assert "source_file" in result["message"]
+        assert "destination_file" in result["message"]
+
+        # Verify that the pending call is NOT cleared on error (as per actual implementation)
+        assert chat_session.pending_tools_manager.has_pending_calls()
+        assert chat_session.pending_tools_manager.get_pending_call(request_id) == tool_call
+
+        # Verify that a tool message was added about the error
+        last_message = chat_session.messages[-1]
+        assert last_message["role"] == "tool"
+        assert "Tool execution failed" in last_message["content"]
+        assert "Missing required arguments" in last_message["content"]
+
+    def test_approve_tool_with_invalid_argument_type(self, chat_session):
+        """Test approving a tool call with argument of wrong type."""
+        # Mock the toolbox to avoid external dependencies
+        chat_session.toolbox = AsyncMock()
+        chat_session.toolbox.get_tools_descriptions.return_value = "Test tools"
+        chat_session.toolbox.initialize.return_value = True
+        chat_session.toolbox.cleanup_servers.return_value = None
+        chat_session.toolbox.execute_tool = AsyncMock(
+            side_effect=ValueError(
+                "Invalid type for argument 'count': expected int, got str"
+            )
+        )
+
+        # Initialize system message first
+        asyncio.run(chat_session.init_system_message())
+
+        # Set up a pending tool call with wrong argument type
+        request_id = "test-request-id"
+        tool_call = {
+            "name": "list_files",
+            "arguments": {"path": "/tmp", "count": "not_a_number"},  # count should be int
+        }
+        chat_session.pending_tools_manager.clear_pending_calls()
+        chat_session.pending_tools_manager.add_pending_tool_call(request_id, tool_call)
+
+        # Approve the request with wrong argument type
+        result = asyncio.run(chat_session.approve(request_id, True))
+
+        # Check that the result contains error information
+        # Note: requires_approval is True because request_id is passed to make_response
+        assert result["requires_approval"] is True
+        assert result["request_id"] == request_id
+        assert "Error" in result["message"]
+        assert "Invalid type" in result["message"]
+        assert "count" in result["message"]
+        assert "expected int" in result["message"]
+        assert "got str" in result["message"]
+
+        # Verify that the pending call is NOT cleared on error (as per actual implementation)
+        assert chat_session.pending_tools_manager.has_pending_calls()
+        assert chat_session.pending_tools_manager.get_pending_call(request_id) == tool_call
+
+        # Verify that a tool message was added about the error
+        last_message = chat_session.messages[-1]
+        assert last_message["role"] == "tool"
+        assert "Tool execution failed" in last_message["content"]
+        assert "Invalid type" in last_message["content"]
