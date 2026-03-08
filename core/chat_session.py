@@ -137,6 +137,7 @@ class ChatSession:
         self.system_prompt_template: str = system_prompt_template
         self.chat_type = chat_type
         self.retries_on_llm_error: int = config.retries_on_llm_error
+        self.debug_messages: bool = config.debug_messages
 
     def debug_write_messages_to_tmp_file(
         self, file_name="/tmp/llm-requester.messages.log"
@@ -145,6 +146,9 @@ class ChatSession:
         Args:
             file_name: The path to the debug log file. Defaults to '/tmp/llm-requester.messages.log'.
         """
+        if not self.debug_messages:
+            return
+
         try:
             with open(file_name, "w") as f:
                 f.write(json.dumps(self.messages))

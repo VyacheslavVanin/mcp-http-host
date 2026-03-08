@@ -40,6 +40,7 @@ LLM_PROVIDER=openai
 | `--temperature` | Temperature parameter | `--temperature 0.7` |
 | `--stream` | Enable streaming mode | `--stream` |
 | `--retries-on-llm-error` | Number of retries on LLM error | `--retries-on-llm-error 3` |
+| `--debug-messages` | Enable debug messages logging to `/tmp/llm-requester.messages.log` | `--debug-messages` |
 
 Example CLI usage:
 

@@ -42,6 +42,7 @@ class Configuration:
         self.stdout_file: str = args.stdout_file
         self.stderr_file: str = args.stderr_file
         self.retries_on_llm_error: int = args.retries_on_llm_error
+        self.debug_messages: bool = bool(args.debug_messages)
 
     def _get_api_key(self, api_key_file_path: str = None) -> str:
         """Get API key from CLI argument, environment variable, or file path.
@@ -156,6 +157,12 @@ class Configuration:
             help="Number of retries on LLM error",
             type=int,
             default=3,
+        )
+        parser.add_argument(
+            "--debug-messages",
+            help="Enable debug messages logging to /tmp/llm-requester.messages.log",
+            action=argparse.BooleanOptionalAction,
+            default=False,
         )
         return parser.parse_args()
 
