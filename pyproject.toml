@@ -12,4 +12,5 @@ dependencies = [
     "fastapi>=0.110.0",
     "xmltodict>=0.14.2",
     "openai>=1.76.0",
+    "pytest>=9.0.2",
 ]

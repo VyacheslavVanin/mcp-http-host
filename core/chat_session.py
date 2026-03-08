@@ -364,6 +364,7 @@ class ChatSession:
                         tool_calls=self.get_pending_tool_calls(),
                     )
 
+                self._append_llm_response(content)
                 return make_response(llm_response)
             except (json.JSONDecodeError, ToolCallValidationError, AttributeError) as e:
                 last_error = e
