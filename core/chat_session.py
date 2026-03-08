@@ -5,7 +5,7 @@ import re
 import uuid
 import os
 import sys
-from typing import Any
+from typing import Any, NoReturn
 from enum import Enum
 
 from mcptoolbox.mcpserver import Server, ToolBox
@@ -20,6 +20,11 @@ class ChatContinuation(Enum):
     PROMPT = 0  # User entered a prompt
     RESET_CHAT = 1  # User requested chat reset
     EXIT = 2  # User requested exit application
+
+
+class ToolCallValidationError(RuntimeError):
+    def __init__(self, message):
+        super().__init__(message)
 
 
 def make_response(
@@ -131,6 +136,7 @@ class ChatSession:
         self.current_directory: str = current_directory
         self.system_prompt_template: str = system_prompt_template
         self.chat_type = chat_type
+        self.retries_on_llm_error: int = config.retries_on_llm_error
 
     def debug_write_messages_to_tmp_file(
         self, file_name="/tmp/llm-requester.messages.log"
@@ -185,6 +191,11 @@ class ChatSession:
         Returns:
             None if valid, error message string if invalid
         """
+
+        def raise_error(message: str) -> NoReturn:
+            logging.warning(message)
+            raise ToolCallValidationError(f"Tool call validation failed: {message}")
+
         tool_name = tool_call.get("name")
         arguments = tool_call.get("arguments", {})
 
@@ -199,25 +210,22 @@ class ChatSession:
                 break
 
         if not tool_schema:
-            logging.warning(f"Tool '{tool_name}' not found in available tools")
-            return f"Tool '{tool_name}' not found"
+            raise_error(f"Tool '{tool_name}' not found in available tools")
 
         # Validate required arguments
         required = tool_schema.get("required", [])
         for req_arg in required:
             if req_arg not in arguments:
-                logging.warning(
+                raise_error(
                     f"Missing required argument: '{req_arg}' for  tool '{tool_name}'"
                 )
-                return f"Missing required argument: '{req_arg}'"
 
         # Validate argument types and unknown arguments
         properties = tool_schema.get("properties", {})
         for arg_name, arg_value in arguments.items():
             # Check for unknown arguments
             if arg_name not in properties:
-                logging.warning(f"Unknown argument '{arg_name}' for tool '{tool_name}'")
-                return f"Invalid argument: '{arg_name}' not in schema"
+                raise_error(f"Unknown argument '{arg_name}' for tool '{tool_name}'")
 
             # Check argument type
             prop_schema = properties[arg_name]
@@ -234,17 +242,15 @@ class ChatSession:
                 }
                 expected_python_type = type_mapping.get(expected_type)
                 if expected_python_type and actual_type != expected_python_type:
-                    logging.warning(
+                    raise_error(
                         f"Invalid type for argument '{arg_name}' of tool '{tool_name}': expected {expected_type}, got {actual_type}"
                     )
-                    return f"Invalid type for argument '{arg_name}': expected {expected_type}, got {actual_type}"
 
             # Validate enum values
             if "enum" in prop_schema and arg_value not in prop_schema["enum"]:
-                logging.warning(
+                raise_error(
                     f"Invalid value for argument '{arg_name}' of tool '{tool_name}': expected one of {prop_schema['enum']}, got '{arg_value}'"
                 )
-                return f"Invalid value for argument '{arg_name}': '{arg_value}' not in {prop_schema['enum']}"
 
         return None
 
@@ -320,75 +326,113 @@ class ChatSession:
             return (ChatContinuation.RESET_CHAT, user_input)
         return (ChatContinuation.PROMPT, user_input)
 
-    async def _llm_request(self, messages) -> dict:
-        llm_response = self.llm_client.get_response(messages)
-        content = llm_response.content
-        try:
-            tool_call = self.try_get_tool_call(content)
-            if "name" in tool_call and "arguments" in tool_call:
-                # Validate tool call before requesting approval
-                validation_error = self._validate_tool_call(tool_call)
-                if validation_error:
-                    # Deny invalid tool call immediately
-                    self._append_llm_response(content)
-                    self._append_tool_message(
-                        f"Tool call validation failed: {validation_error}"
+    async def _llm_request(self, messages, max_retries: int = 3) -> dict:
+        """Request LLM response with retry logic on validation failure.
+
+        Args:
+            messages: List of conversation messages
+            max_retries: Maximum number of retry attempts
+
+        Returns:
+            dict: The response or error message
+        """
+        last_error = None
+        for attempt in range(max_retries + 1):
+            llm_response = self.llm_client.get_response(messages)
+            content = llm_response.content
+            try:
+                tool_call = self.try_get_tool_call(content)
+                if "name" in tool_call and "arguments" in tool_call:
+                    # Validate tool call before requesting approval
+                    self._validate_tool_call(tool_call)
+
+                    request_id = str(uuid.uuid4())
+                    self.pending_tools_manager.add_pending_tool_call(
+                        request_id, tool_call
                     )
-                    return make_response(f"Tool call invalid: {validation_error}")
+                    logging.info(
+                        f"Request user confirmation for {tool_call['name']} {request_id=}"
+                    )
+                    self._append_llm_response(content)
+                    return make_response(
+                        llm_response,
+                        request_id=request_id,
+                        tool_calls=self.get_pending_tool_calls(),
+                    )
 
-                request_id = str(uuid.uuid4())
-                self.pending_tools_manager.add_pending_tool_call(request_id, tool_call)
-                logging.info(
-                    f"Request user confirmation for {tool_call['name']} {request_id=}"
-                )
-                self._append_llm_response(content)
-                return make_response(
-                    llm_response,
-                    request_id=request_id,
-                    tool_calls=self.get_pending_tool_calls(),
-                )
+                return make_response(llm_response)
+            except (json.JSONDecodeError, ToolCallValidationError, AttributeError) as e:
+                last_error = e
+                if attempt < max_retries:
+                    logging.warning(
+                        f"Validation failed on attempt {attempt + 1}/{max_retries + 1}, retrying ..."
+                    )
+                else:
+                    logging.error(
+                        f"All {max_retries + 1} attempts failed. Last error: {e}"
+                    )
+                    self._append_llm_response(content)
+                    self._append_tool_message(f"Tool call failed: {e}")
+                    return make_response(
+                        f"\nFailed after {max_retries + 1} attempts: {e}\n"
+                    )
 
-            self._append_llm_response(content)
-            return make_response(llm_response)
-        except (json.JSONDecodeError, AttributeError) as e:
-            logging.error(f"Failed to parse tool call: {e}")
-            self._append_llm_response(content)
-            return make_response(llm_response)
+    def _llm_request_stream(self, messages, max_retries: int = 3):
+        """Request LLM response with retry logic on validation failure.
 
-    def _llm_request_stream(self, messages) -> str:
-        llm_response = ""
-        for part in self.llm_client.get_response_stream(messages):
-            if part and part.content is not None:
-                yield to_stream_response(part)
-                llm_response += part.content
-        self._append_llm_response(llm_response)
-        try:
-            tool_call = self.try_get_tool_call(llm_response)
-            if "name" in tool_call and "arguments" in tool_call:
-                # Validate tool call before requesting approval
-                validation_error = self._validate_tool_call(tool_call)
-                if validation_error:
-                    # Deny invalid tool call immediately
+        Args:
+            messages: List of conversation messages
+            max_retries: Maximum number of retry attempts
+
+        Yields:
+            str: Streamed response parts
+        """
+        last_error = None
+        for attempt in range(max_retries + 1):
+            llm_response = ""
+            for part in self.llm_client.get_response_stream(messages):
+                if part and part.content is not None:
+                    yield to_stream_response(part)
+                    llm_response += part.content
+            try:
+                tool_call = self.try_get_tool_call(llm_response)
+                if "name" in tool_call and "arguments" in tool_call:
+                    # Validate tool call before requesting approval
+                    self._validate_tool_call(tool_call)
+
+                    request_id = str(uuid.uuid4())
+                    self.pending_tools_manager.add_pending_tool_call(
+                        request_id, tool_call
+                    )
+                    self._append_llm_response(llm_response)
                     yield to_stream_response(
-                        f"\nTool call invalid: {validation_error}\n",
+                        f"\napprove required {tool_call['name']}\n",
+                        request_id=self.pending_tools_manager.pending_request_id,
+                        tool_calls=self.get_pending_tool_calls(),
                         end=True,
                     )
                     return
 
-                request_id = str(uuid.uuid4())
-                self.pending_tools_manager.add_pending_tool_call(request_id, tool_call)
-                yield to_stream_response(
-                    f"\napprove required {tool_call['name']}\n",
-                    request_id=self.pending_tools_manager.pending_request_id,
-                    tool_calls=self.get_pending_tool_calls(),
-                    end=True,
-                )
+                self._append_llm_response(llm_response)
+                yield to_stream_response("", end=True)
                 return
-
-            yield to_stream_response("", end=True)
-        except (json.JSONDecodeError, AttributeError) as e:
-            logging.error(f"Failed to parse tool call: {e}")
-            yield to_stream_response("", end=True)
+            except (json.JSONDecodeError, ToolCallValidationError, AttributeError) as e:
+                last_error = e
+                if attempt < max_retries:
+                    logging.warning(
+                        f"Validation failed on attempt {attempt + 1}/{max_retries + 1}, retrying ..."
+                    )
+                else:
+                    logging.error(
+                        f"All {max_retries + 1} attempts failed. Last error: {e}"
+                    )
+                    self._append_llm_response(llm_response)
+                    self._append_tool_message(f"Tool call failed: {e}")
+                    yield to_stream_response(
+                        f"\nFailed after {max_retries + 1} attempts: {e}\n",
+                        end=True,
+                    )
+                    return
 
     async def validate_request(self, user_input: str) -> dict | None:
         """Validate a user request.
@@ -430,7 +474,9 @@ class ChatSession:
         if system_context:
             self._append_tool_message(f"additional_context:\n{system_context}\n")
         self._append_user_message(user_input)
-        return await self._llm_request(self.messages)
+        return await self._llm_request(
+            self.messages, max_retries=self.retries_on_llm_error
+        )
 
     def user_request_stream(
         self, user_input: str, system_context: str = ""
@@ -451,7 +497,9 @@ class ChatSession:
         self._append_user_message(user_input)
 
         def stream_generator():
-            for r in self._llm_request_stream(self.messages):
+            for r in self._llm_request_stream(
+                self.messages, max_retries=self.retries_on_llm_error
+            ):
                 yield r
 
         return StreamingResponse(stream_generator())
@@ -510,12 +558,16 @@ class ChatSession:
             if self.llm_client.config.stream:
 
                 def stream_generator():
-                    for r in self._llm_request_stream(self.messages):
+                    for r in self._llm_request_stream(
+                        self.messages, max_retries=self.retries_on_llm_error
+                    ):
                         yield r
 
                 return StreamingResponse(stream_generator())
             else:
-                return await self._llm_request(self.messages)
+                return await self._llm_request(
+                    self.messages, max_retries=self.retries_on_llm_error
+                )
 
         except Exception as e:
             self._append_tool_message(f"Tool execution failed with error {str(e)}")

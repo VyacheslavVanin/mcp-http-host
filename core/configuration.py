@@ -41,6 +41,7 @@ class Configuration:
         self.timeout: float = float(args.timeout) if args.timeout else None
         self.stdout_file: str = args.stdout_file
         self.stderr_file: str = args.stderr_file
+        self.retries_on_llm_error: int = args.retries_on_llm_error
 
     def _get_api_key(self, api_key_file_path: str = None) -> str:
         """Get API key from CLI argument, environment variable, or file path.
@@ -119,7 +120,6 @@ class Configuration:
         parser.add_argument(
             "--stream",
             help="Set stream mode",
-            type=bool,
             action=argparse.BooleanOptionalAction,
             default=False,
         )
@@ -133,7 +133,6 @@ class Configuration:
             "--verify-ssl",
             help="Enable ssl verification on requests (disable only when you sure that it is safe to do so)",
             action=argparse.BooleanOptionalAction,
-            type=bool,
             default=True,
         )
         parser.add_argument(
@@ -151,6 +150,12 @@ class Configuration:
             "--api-key-file",
             help="Path to file containing the API key",
             default=None,
+        )
+        parser.add_argument(
+            "--retries-on-llm-error",
+            help="Number of retries on LLM error",
+            type=int,
+            default=3,
         )
         return parser.parse_args()
 

@@ -39,6 +39,7 @@ LLM_PROVIDER=openai
 | `--context-window-size` | Context window size | `--context-window-size 2048` |
 | `--temperature` | Temperature parameter | `--temperature 0.7` |
 | `--stream` | Enable streaming mode | `--stream` |
+| `--retries-on-llm-error` | Number of retries on LLM error | `--retries-on-llm-error 3` |
 
 Example CLI usage:
 

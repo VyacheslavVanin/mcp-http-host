@@ -99,12 +99,12 @@ class TestChatSessionStreaming:
     def test_user_request_stream_basic(self, chat_session_streaming):
         """Test basic user request streaming."""
         # Mock the toolbox to avoid external dependencies
-        chat_session_streaming.toolbox = AsyncMock()
+        chat_session_streaming.toolbox = MagicMock()
         chat_session_streaming.toolbox.get_tools_descriptions.return_value = (
             "Test tools"
         )
-        chat_session_streaming.toolbox.initialize.return_value = True
-        chat_session_streaming.toolbox.cleanup_servers.return_value = None
+        chat_session_streaming.toolbox.initialize = AsyncMock(return_value=True)
+        chat_session_streaming.toolbox.cleanup_servers = AsyncMock(return_value=None)
 
         # Initialize system message first
         asyncio.run(chat_session_streaming.init_system_message())
@@ -118,12 +118,12 @@ class TestChatSessionStreaming:
     def test_user_request_stream_with_context(self, chat_session_streaming):
         """Test user request streaming with additional context."""
         # Mock the toolbox to avoid external dependencies
-        chat_session_streaming.toolbox = AsyncMock()
+        chat_session_streaming.toolbox = MagicMock()
         chat_session_streaming.toolbox.get_tools_descriptions.return_value = (
             "Test tools"
         )
-        chat_session_streaming.toolbox.initialize.return_value = True
-        chat_session_streaming.toolbox.cleanup_servers.return_value = None
+        chat_session_streaming.toolbox.initialize = AsyncMock(return_value=True)
+        chat_session_streaming.toolbox.cleanup_servers = AsyncMock(return_value=None)
 
         # Initialize system message first
         asyncio.run(chat_session_streaming.init_system_message())

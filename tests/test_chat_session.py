@@ -106,10 +106,10 @@ class TestChatSessionHappyPath:
     def test_init_system_message(self, chat_session):
         """Test initialization of system message."""
         # Mock the toolbox to avoid external dependencies
-        chat_session.toolbox = AsyncMock()
+        chat_session.toolbox = MagicMock()
         chat_session.toolbox.get_tools_descriptions.return_value = "Test tools"
-        chat_session.toolbox.initialize.return_value = True
-        chat_session.toolbox.cleanup_servers.return_value = None
+        chat_session.toolbox.initialize = AsyncMock(return_value=True)
+        chat_session.toolbox.cleanup_servers = AsyncMock(return_value=None)
 
         # Call init_system_message
         result = asyncio.run(chat_session.init_session())
@@ -131,10 +131,10 @@ class TestChatSessionHappyPath:
     def test_user_request_basic(self, chat_session):
         """Test basic user request handling."""
         # Mock the toolbox to avoid external dependencies
-        chat_session.toolbox = AsyncMock()
+        chat_session.toolbox = MagicMock()
         chat_session.toolbox.get_tools_descriptions.return_value = "Test tools"
-        chat_session.toolbox.initialize.return_value = True
-        chat_session.toolbox.cleanup_servers.return_value = None
+        chat_session.toolbox.initialize = AsyncMock(return_value=True)
+        chat_session.toolbox.cleanup_servers = AsyncMock(return_value=None)
 
         # Initialize system message first
         asyncio.run(chat_session.init_system_message())
@@ -177,10 +177,10 @@ class TestChatSessionHappyPath:
     def test_user_request_with_system_context(self, chat_session):
         """Test user request with additional system context."""
         # Mock the toolbox to avoid external dependencies
-        chat_session.toolbox = AsyncMock()
+        chat_session.toolbox = MagicMock()
         chat_session.toolbox.get_tools_descriptions.return_value = "Test tools"
-        chat_session.toolbox.initialize.return_value = True
-        chat_session.toolbox.cleanup_servers.return_value = None
+        chat_session.toolbox.initialize = AsyncMock(return_value=True)
+        chat_session.toolbox.cleanup_servers = AsyncMock(return_value=None)
 
         # Initialize system message first
         asyncio.run(chat_session.init_system_message())
@@ -229,10 +229,10 @@ class TestChatSessionHappyPath:
     def test_validate_request_exit_command(self, chat_session):
         """Test validate_request with exit command."""
         # Mock the toolbox to avoid external dependencies
-        chat_session.toolbox = AsyncMock()
+        chat_session.toolbox = MagicMock()
         chat_session.toolbox.get_tools_descriptions.return_value = "Test tools"
-        chat_session.toolbox.initialize.return_value = True
-        chat_session.toolbox.cleanup_servers.return_value = None
+        chat_session.toolbox.initialize = AsyncMock(return_value=True)
+        chat_session.toolbox.cleanup_servers = AsyncMock(return_value=None)
 
         # Initialize system message first
         asyncio.run(chat_session.init_system_message())
@@ -250,10 +250,10 @@ class TestChatSessionHappyPath:
     def test_validate_request_quit_command(self, chat_session):
         """Test validate_request with quit command."""
         # Mock the toolbox to avoid external dependencies
-        chat_session.toolbox = AsyncMock()
+        chat_session.toolbox = MagicMock()
         chat_session.toolbox.get_tools_descriptions.return_value = "Test tools"
-        chat_session.toolbox.initialize.return_value = True
-        chat_session.toolbox.cleanup_servers.return_value = None
+        chat_session.toolbox.initialize = AsyncMock(return_value=True)
+        chat_session.toolbox.cleanup_servers = AsyncMock(return_value=None)
 
         # Initialize system message first
         asyncio.run(chat_session.init_system_message())
@@ -271,10 +271,10 @@ class TestChatSessionHappyPath:
     def test_validate_request_clear_command(self, chat_session):
         """Test validate_request with clear command."""
         # Mock the toolbox to avoid external dependencies
-        chat_session.toolbox = AsyncMock()
+        chat_session.toolbox = MagicMock()
         chat_session.toolbox.get_tools_descriptions.return_value = "Test tools"
-        chat_session.toolbox.initialize.return_value = True
-        chat_session.toolbox.cleanup_servers.return_value = None
+        chat_session.toolbox.initialize = AsyncMock(return_value=True)
+        chat_session.toolbox.cleanup_servers = AsyncMock(return_value=None)
 
         # Initialize system message first
         asyncio.run(chat_session.init_system_message())
@@ -292,10 +292,10 @@ class TestChatSessionHappyPath:
     def test_get_session_state(self, chat_session):
         """Test getting session state."""
         # Mock the toolbox to avoid external dependencies
-        chat_session.toolbox = AsyncMock()
+        chat_session.toolbox = MagicMock()
         chat_session.toolbox.get_tools_descriptions.return_value = "Test tools"
-        chat_session.toolbox.initialize.return_value = True
-        chat_session.toolbox.cleanup_servers.return_value = None
+        chat_session.toolbox.initialize = AsyncMock(return_value=True)
+        chat_session.toolbox.cleanup_servers = AsyncMock(return_value=None)
 
         # Initialize system message first
         asyncio.run(chat_session.init_system_message())
@@ -366,10 +366,10 @@ class TestChatSessionToolApproval:
     def test_approve_valid_request(self, chat_session):
         """Test approving a valid tool request."""
         # Mock the toolbox to avoid external dependencies
-        chat_session.toolbox = AsyncMock()
+        chat_session.toolbox = MagicMock()
         chat_session.toolbox.get_tools_descriptions.return_value = "Test tools"
-        chat_session.toolbox.initialize.return_value = True
-        chat_session.toolbox.cleanup_servers.return_value = None
+        chat_session.toolbox.initialize = AsyncMock(return_value=True)
+        chat_session.toolbox.cleanup_servers = AsyncMock(return_value=None)
         chat_session.toolbox.execute_tool = AsyncMock(
             return_value="Tool executed successfully"
         )
@@ -422,10 +422,10 @@ class TestChatSessionToolApproval:
     def test_deny_valid_request(self, chat_session):
         """Test denying a valid tool request."""
         # Mock the toolbox to avoid external dependencies
-        chat_session.toolbox = AsyncMock()
+        chat_session.toolbox = MagicMock()
         chat_session.toolbox.get_tools_descriptions.return_value = "Test tools"
-        chat_session.toolbox.initialize.return_value = True
-        chat_session.toolbox.cleanup_servers.return_value = None
+        chat_session.toolbox.initialize = AsyncMock(return_value=True)
+        chat_session.toolbox.cleanup_servers = AsyncMock(return_value=None)
 
         # Initialize system message first
         asyncio.run(chat_session.init_system_message())
@@ -460,10 +460,10 @@ class TestChatSessionToolApproval:
     def test_approve_invalid_request_id(self, chat_session):
         """Test approving with an invalid request ID."""
         # Mock the toolbox to avoid external dependencies
-        chat_session.toolbox = AsyncMock()
+        chat_session.toolbox = MagicMock()
         chat_session.toolbox.get_tools_descriptions.return_value = "Test tools"
-        chat_session.toolbox.initialize.return_value = True
-        chat_session.toolbox.cleanup_servers.return_value = None
+        chat_session.toolbox.initialize = AsyncMock(return_value=True)
+        chat_session.toolbox.cleanup_servers = AsyncMock(return_value=None)
 
         # Initialize system message first
         asyncio.run(chat_session.init_system_message())
@@ -502,10 +502,10 @@ class TestChatSessionInvalidToolParameters:
     def test_approve_tool_with_missing_argument(self, chat_session):
         """Test approving a tool call with missing required argument."""
         # Mock the toolbox to avoid external dependencies
-        chat_session.toolbox = AsyncMock()
+        chat_session.toolbox = MagicMock()
         chat_session.toolbox.get_tools_descriptions.return_value = "Test tools"
-        chat_session.toolbox.initialize.return_value = True
-        chat_session.toolbox.cleanup_servers.return_value = None
+        chat_session.toolbox.initialize = AsyncMock(return_value=True)
+        chat_session.toolbox.cleanup_servers = AsyncMock(return_value=None)
         chat_session.toolbox.execute_tool = AsyncMock(
             side_effect=ValueError("Missing required argument: 'file_path'")
         )
@@ -515,7 +515,10 @@ class TestChatSessionInvalidToolParameters:
 
         # Set up a pending tool call with missing argument
         request_id = "test-request-id"
-        tool_call = {"name": "read_file", "arguments": {}}  # Missing required 'file_path'
+        tool_call = {
+            "name": "read_file",
+            "arguments": {},
+        }  # Missing required 'file_path'
         chat_session.pending_tools_manager.clear_pending_calls()
         chat_session.pending_tools_manager.add_pending_tool_call(request_id, tool_call)
 
@@ -532,7 +535,9 @@ class TestChatSessionInvalidToolParameters:
 
         # Verify that the pending call is NOT cleared on error (as per actual implementation)
         assert chat_session.pending_tools_manager.has_pending_calls()
-        assert chat_session.pending_tools_manager.get_pending_call(request_id) == tool_call
+        assert (
+            chat_session.pending_tools_manager.get_pending_call(request_id) == tool_call
+        )
 
         # Verify that a tool message was added about the error
         last_message = chat_session.messages[-1]
@@ -543,10 +548,10 @@ class TestChatSessionInvalidToolParameters:
     def test_approve_tool_with_invalid_argument(self, chat_session):
         """Test approving a tool call with argument not in schema."""
         # Mock the toolbox to avoid external dependencies
-        chat_session.toolbox = AsyncMock()
+        chat_session.toolbox = MagicMock()
         chat_session.toolbox.get_tools_descriptions.return_value = "Test tools"
-        chat_session.toolbox.initialize.return_value = True
-        chat_session.toolbox.cleanup_servers.return_value = None
+        chat_session.toolbox.initialize = AsyncMock(return_value=True)
+        chat_session.toolbox.cleanup_servers = AsyncMock(return_value=None)
         chat_session.toolbox.execute_tool = AsyncMock(
             side_effect=ValueError("Invalid argument: 'invalid_param' not in schema")
         )
@@ -576,7 +581,9 @@ class TestChatSessionInvalidToolParameters:
 
         # Verify that the pending call is NOT cleared on error (as per actual implementation)
         assert chat_session.pending_tools_manager.has_pending_calls()
-        assert chat_session.pending_tools_manager.get_pending_call(request_id) == tool_call
+        assert (
+            chat_session.pending_tools_manager.get_pending_call(request_id) == tool_call
+        )
 
         # Verify that a tool message was added about the error
         last_message = chat_session.messages[-1]
@@ -587,10 +594,10 @@ class TestChatSessionInvalidToolParameters:
     def test_approve_tool_with_multiple_missing_arguments(self, chat_session):
         """Test approving a tool call with multiple missing required arguments."""
         # Mock the toolbox to avoid external dependencies
-        chat_session.toolbox = AsyncMock()
+        chat_session.toolbox = MagicMock()
         chat_session.toolbox.get_tools_descriptions.return_value = "Test tools"
-        chat_session.toolbox.initialize.return_value = True
-        chat_session.toolbox.cleanup_servers.return_value = None
+        chat_session.toolbox.initialize = AsyncMock(return_value=True)
+        chat_session.toolbox.cleanup_servers = AsyncMock(return_value=None)
         chat_session.toolbox.execute_tool = AsyncMock(
             side_effect=ValueError(
                 "Missing required arguments: 'source_file', 'destination_file'"
@@ -623,7 +630,9 @@ class TestChatSessionInvalidToolParameters:
 
         # Verify that the pending call is NOT cleared on error (as per actual implementation)
         assert chat_session.pending_tools_manager.has_pending_calls()
-        assert chat_session.pending_tools_manager.get_pending_call(request_id) == tool_call
+        assert (
+            chat_session.pending_tools_manager.get_pending_call(request_id) == tool_call
+        )
 
         # Verify that a tool message was added about the error
         last_message = chat_session.messages[-1]
@@ -634,10 +643,10 @@ class TestChatSessionInvalidToolParameters:
     def test_approve_tool_with_invalid_argument_type(self, chat_session):
         """Test approving a tool call with argument of wrong type."""
         # Mock the toolbox to avoid external dependencies
-        chat_session.toolbox = AsyncMock()
+        chat_session.toolbox = MagicMock()
         chat_session.toolbox.get_tools_descriptions.return_value = "Test tools"
-        chat_session.toolbox.initialize.return_value = True
-        chat_session.toolbox.cleanup_servers.return_value = None
+        chat_session.toolbox.initialize = AsyncMock(return_value=True)
+        chat_session.toolbox.cleanup_servers = AsyncMock(return_value=None)
         chat_session.toolbox.execute_tool = AsyncMock(
             side_effect=ValueError(
                 "Invalid type for argument 'count': expected int, got str"
@@ -651,7 +660,10 @@ class TestChatSessionInvalidToolParameters:
         request_id = "test-request-id"
         tool_call = {
             "name": "list_files",
-            "arguments": {"path": "/tmp", "count": "not_a_number"},  # count should be int
+            "arguments": {
+                "path": "/tmp",
+                "count": "not_a_number",
+            },  # count should be int
         }
         chat_session.pending_tools_manager.clear_pending_calls()
         chat_session.pending_tools_manager.add_pending_tool_call(request_id, tool_call)
@@ -671,7 +683,9 @@ class TestChatSessionInvalidToolParameters:
 
         # Verify that the pending call is NOT cleared on error (as per actual implementation)
         assert chat_session.pending_tools_manager.has_pending_calls()
-        assert chat_session.pending_tools_manager.get_pending_call(request_id) == tool_call
+        assert (
+            chat_session.pending_tools_manager.get_pending_call(request_id) == tool_call
+        )
 
         # Verify that a tool message was added about the error
         last_message = chat_session.messages[-1]
